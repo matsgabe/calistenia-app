@@ -3,9 +3,33 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class UsuarioRepository {
   final _supabase = Supabase.instance.client;
 
+  // Valida login conferindo username e senha
+  Future<Map<String, dynamic>?> fazerLogin(
+    String username,
+    String senha,
+  ) async {
+    final response = await _supabase
+        .from('usuarios')
+        .select()
+        .eq('username', username)
+        .eq('senha', senha)
+        .maybeSingle();
+    return response;
+  }
+
+  Future<bool> verificarUsernameExiste(String username) async {
+    final response = await _supabase
+        .from('usuarios')
+        .select('id')
+        .eq('username', username)
+        .maybeSingle();
+    return response != null;
+  }
+
   Future<int> cadastrarUsuario({
+    required String username,
+    required String senha,
     required String nome,
-    required String email,
     required String genero,
     required DateTime dataNascimento,
     required int alturaCm,
@@ -13,8 +37,9 @@ class UsuarioRepository {
     final response = await _supabase
         .from('usuarios')
         .insert({
+          'username': username,
+          'senha': senha,
           'nome': nome,
-          'email': email,
           'genero': genero,
           'data_nascimento': dataNascimento.toIso8601String().split('T')[0],
           'altura_cm': alturaCm,

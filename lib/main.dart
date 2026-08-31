@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'onboarding_screen.dart';
-import 'auth_screen.dart';
 
-void main() async {
+import 'login_screen.dart'; // Import da tela de login
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
@@ -11,18 +11,18 @@ void main() async {
     publishableKey: 'sb_publishable_PflsWSeJqaS-EhjmlAPCXw_hYWjj9HT',
   );
 
-  runApp(const CalisteniaApp());
+  runApp(const MyApp());
 }
 
-class CalisteniaApp extends StatelessWidget {
-  const CalisteniaApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Calistenia App',
       theme: ThemeData.dark(),
-      home: const AuthScreen(),
+      home: const LoginScreen(), // Inicia na tela de Login limpa
     );
   }
 }

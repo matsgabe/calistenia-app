@@ -4,35 +4,32 @@ import 'register_screen.dart';
 import 'home_screen.dart';
 import 'usuario_repository.dart';
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key});
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<AuthScreen> createState() => _AuthScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _AuthScreenState extends State<AuthScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _senhaController = TextEditingController();
-
   bool _isLoading = false;
 
-  Future<void> _fazerLogin() async {
+  Future<void> _efetuarLogin() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
         final repository = UsuarioRepository();
-        final username = _usernameController.text.trim();
-        final senha = _senhaController.text.trim();
-
-        // Valida as credenciais estritamente no banco de dados
-        final usuario = await repository.fazerLogin(username, senha);
+        final usuario = await repository.fazerLogin(
+          _usernameController.text.trim(),
+          _senhaController.text.trim(),
+        );
 
         if (!mounted) return;
 
         if (usuario != null) {
-          // Login bem-sucedido, direciona para a Home
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -40,17 +37,18 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           );
         } else {
-          // Username não existe ou senha incorreta (evita criação fantasma)
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Username ou senha inválidos. Verifique os dados.'),
+              content: Text(
+                'Usuário ou senha incorretos, ou conta não existe.',
+              ),
             ),
           );
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Erro ao entrar: $e')));
+              .showSnackBar(SnackBar(content: Text('Erro: $e')));
         }
       } finally {
         if (mounted) setState(() => _isLoading = false);
@@ -68,32 +66,26 @@ class _AuthScreenState extends State<AuthScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 40),
               const Text(
                 'Bem-vindo de volta!',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 8),
-              const Text(
-                'Insira suas credenciais para acessar seu treino:',
-                style: TextStyle(color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 32),
               TextFormField(
-                key: const Key('input_auth_username'),
+                key: const Key('input_login_username'),
                 controller: _usernameController,
                 decoration: const InputDecoration(
                   labelText: 'Username',
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) =>
-                    value!.isNotEmpty ? null : 'Informe seu username',
+                    value!.isEmpty ? 'Informe seu username' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(
-                key: const Key('input_auth_senha'),
+                key: const Key('input_login_senha'),
                 controller: _senhaController,
                 decoration: const InputDecoration(
                   labelText: 'Senha',
@@ -101,12 +93,12 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 obscureText: true,
                 validator: (value) =>
-                    value!.isNotEmpty ? null : 'Informe sua senha',
+                    value!.isEmpty ? 'Informe sua senha' : null,
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               ElevatedButton(
-                key: const Key('btn_submit_auth'),
-                onPressed: _isLoading ? null : _fazerLogin,
+                key: const Key('btn_fazer_login'),
+                onPressed: _isLoading ? null : _efetuarLogin,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
@@ -114,7 +106,6 @@ class _AuthScreenState extends State<AuthScreen> {
                     ? const CircularProgressIndicator()
                     : const Text('Entrar', style: TextStyle(fontSize: 16)),
               ),
-              const SizedBox(height: 16),
               TextButton(
                 key: const Key('btn_ir_para_registro'),
                 onPressed: () {

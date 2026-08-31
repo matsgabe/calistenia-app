@@ -1,39 +1,29 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'usuario_repository.dart';
 import 'metricas_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final String username;
+  final String senha;
+  const OnboardingScreen({
+    super.key,
+    required this.username,
+    required this.senha,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  final _supabase = Supabase.instance.client;
   final _formKey = GlobalKey<FormState>();
   final _nomeController = TextEditingController();
-  final _emailController = TextEditingController();
   final _alturaController = TextEditingController();
 
   String _generoSelecionado = 'M';
   DateTime _dataNascimento = DateTime(1995, 1, 1);
   bool _isLoading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _carregarEmailAutenticado();
-  }
-
-  void _carregarEmailAutenticado() {
-    final user = _supabase.auth.currentUser;
-    if (user != null && user.email != null) {
-      _emailController.text = user.email!;
-    }
-  }
 
   Future<void> _selecionarData(BuildContext context) async {
     final DateTime? selecionada = await showDatePicker(
@@ -43,9 +33,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       lastDate: DateTime.now(),
     );
     if (selecionada != null && selecionada != _dataNascimento) {
-      setState(() {
-        _dataNascimento = selecionada;
-      });
+      setState(() => _dataNascimento = selecionada);
     }
   }
 
@@ -57,8 +45,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         final repository = UsuarioRepository();
 
         final id = await repository.cadastrarUsuario(
-          nome: _nomeController.text,
-          email: _emailController.text,
+          username: widget.username,
+          senha: widget.senha,
+          nome: _nomeController.text.trim(),
           genero: _generoSelecionado,
           dataNascimento: _dataNascimento,
           alturaCm: int.parse(_alturaController.text),
@@ -93,28 +82,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           key: _formKey,
           child: ListView(
             children: [
-              TextFormField(
-                key: const Key('input_nome'),
-                controller: _nomeController,
-                decoration: const InputDecoration(labelText: 'Nome ou Apelido'),
-                validator: (value) =>
-                    value!.isEmpty ? 'Campo obrigatório' : null,
+              const SizedBox(height: 10),
+              const Text(
+                'Conte-nos um pouco sobre você',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
               TextFormField(
-                key: const Key('input_email'),
-                controller: _emailController,
-                readOnly: true, // E-mail vem travado da autenticação
+                key: const Key('input_nome_real'),
+                controller: _nomeController,
                 decoration: const InputDecoration(
-                  labelText: 'E-mail',
-                  helperText: 'Vinculado à sua conta de acesso',
+                  labelText: 'Seu Nome (ex: Matheus Gabriel)',
+                  border: OutlineInputBorder(),
                 ),
+                validator: (value) =>
+                    value!.isEmpty ? 'Informe seu nome' : null,
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 key: const Key('select_genero'),
                 value: _generoSelecionado,
-                decoration: const InputDecoration(labelText: 'Gênero'),
+                decoration: const InputDecoration(
+                  labelText: 'Gênero',
+                  border: OutlineInputBorder(),
+                ),
                 items: const [
                   DropdownMenuItem(value: 'M', child: Text('Masculino')),
                   DropdownMenuItem(value: 'F', child: Text('Feminino')),
@@ -129,6 +120,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 decoration: const InputDecoration(
                   labelText: 'Altura (cm)',
                   hintText: 'Ex: 175',
+                  border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 validator: (value) =>
