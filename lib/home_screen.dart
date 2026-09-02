@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'conquistas_screen.dart';
 import 'app_cache.dart';
 import 'dieta_screen.dart';
 import 'treino_screen.dart';
@@ -354,6 +354,54 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 if (!_treinoConcluidoHoje)
                   const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
+          ),
+        ),
+        // --- CARD DE ATALHO PARA CONQUISTAS ---
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    ConquistasScreen(usuarioId: widget.usuarioId),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade900,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.withOpacity(0.2)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.military_tech, color: Colors.amber, size: 28),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Galeria de Conquistas',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Toque para ver suas insígnias e marcos',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
           ),
