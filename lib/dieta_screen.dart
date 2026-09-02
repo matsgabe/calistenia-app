@@ -44,12 +44,10 @@ class _DietaScreenState extends State<DietaScreen> {
   // Fluxo de captura de foto e Análise da IA
   Future<void> _capturarEAnalisarFoto() async {
     try {
-      // 1. Abre a câmera ou galeria
       final XFile? foto = await _picker.pickImage(source: ImageSource.camera);
 
-      if (foto == null) return; // Usuário cancelou
+      if (foto == null) return;
 
-      // 2. Exibe modal de carregamento estiloso
       if (mounted) {
         showDialog(
           context: context,
@@ -71,19 +69,15 @@ class _DietaScreenState extends State<DietaScreen> {
         );
       }
 
-      // 3. Simulação da API de Visão Computacional (Gemini Vision)
-      // No futuro, aqui você passa os bytes da 'foto' para o Google Generative AI
       await Future.delayed(const Duration(seconds: 3));
 
-      // Retorno simulado da IA
-      final String descricaoIA =
-          "Prato de Frango Grelhado com Batata Doce e Salada";
-      final int kcalIA = 420;
-      final int protIA = 45;
-      final int carbIA = 35;
-      final int gordIA = 10;
+      // Retorno simulado da IA ajustado para a foto real (Arroz, Feijão, Ovo, Salada)
+      final String descricaoIA = "Arroz, Feijão, Ovo Frito, Cenoura e Salada";
+      final int kcalIA = 450;
+      final int protIA = 18;
+      final int carbIA = 55;
+      final int gordIA = 15;
 
-      // 4. Salva no Supabase
       await _dietaRepository.registrarRefeicao(
         usuarioId: widget.usuarioId,
         descricao: descricaoIA,
@@ -93,20 +87,19 @@ class _DietaScreenState extends State<DietaScreen> {
         gorduras: gordIA,
       );
 
-      // 5. Fecha modal e recarrega
       if (mounted) {
-        Navigator.pop(context); // Fecha o modal de loading
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Refeição identificada e salva com sucesso! 🥗'),
             backgroundColor: Colors.green,
           ),
         );
-        _carregarRefeicoes(); // Atualiza a lista na tela
+        _carregarRefeicoes();
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context); // Fecha o modal em caso de erro
+        Navigator.pop(context);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Erro ao analisar prato: $e')));
@@ -114,15 +107,14 @@ class _DietaScreenState extends State<DietaScreen> {
     }
   }
 
-  // Registro manual via texto (botão +)
+  // Registro manual via texto
   Future<void> _registrarManual() async {
     if (_textoController.text.trim().isEmpty) return;
 
-    // Simplificação para registro manual rápido (em um app real a IA de texto avaliaria isso)
     await _dietaRepository.registrarRefeicao(
       usuarioId: widget.usuarioId,
       descricao: _textoController.text.trim(),
-      calorias: 300, // Valores genéricos para exemplo manual
+      calorias: 300,
       proteinas: 15,
       carboidratos: 30,
       gorduras: 10,
@@ -182,28 +174,54 @@ class _DietaScreenState extends State<DietaScreen> {
         ),
         const SizedBox(height: 24),
 
-        // --- CARDÁPIO SUGERIDO ---
+        // --- CARDÁPIO SUGERIDO (4 REFEIÇÕES) ---
         const Text(
           'Cardápio Sugerido para Hoje',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        Row(
+        Column(
           children: [
-            Expanded(
-              child: _buildCardRefeicao(
-                'Café da Manhã',
-                'Ovos mexidos, pão integral e banana',
-                '450 kcal',
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildCardRefeicao(
+                    'Café da Manhã',
+                    'Ovos mexidos, pão integral e banana',
+                    '450 kcal',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildCardRefeicao(
+                    'Almoço',
+                    'Carne bovina magra, arroz, feijão e azeite',
+                    '750 kcal',
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildCardRefeicao(
-                'Almoço',
-                'Carne bovina magra, arroz, feijão e azeite',
-                '750 kcal',
-              ),
+            const SizedBox(height: 12),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _buildCardRefeicao(
+                    'Café da Tarde',
+                    'Iogurte natural com whey protein e aveia',
+                    '300 kcal',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildCardRefeicao(
+                    'Jantar',
+                    'Frango desfiado, batata-doce e brócolis',
+                    '500 kcal',
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -244,20 +262,20 @@ class _DietaScreenState extends State<DietaScreen> {
             InkWell(
               onTap: _registrarManual,
               borderRadius: BorderRadius.circular(50),
-              child: CircleAvatar(
+              child: const CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.greenAccent,
-                child: const Icon(Icons.add, color: Colors.black),
+                child: Icon(Icons.add, color: Colors.black),
               ),
             ),
             const SizedBox(width: 12),
             InkWell(
-              onTap: _capturarEAnalisarFoto, // CHAMA A CAMERA E IA AQUI!
+              onTap: _capturarEAnalisarFoto,
               borderRadius: BorderRadius.circular(50),
-              child: CircleAvatar(
+              child: const CircleAvatar(
                 radius: 24,
                 backgroundColor: Colors.greenAccent,
-                child: const Icon(Icons.camera_alt, color: Colors.black),
+                child: Icon(Icons.camera_alt, color: Colors.black),
               ),
             ),
           ],
@@ -302,7 +320,7 @@ class _DietaScreenState extends State<DietaScreen> {
                         ),
                       ),
                       title: Text(
-                        ref['descricao'] ?? 'Refeição',
+                        ref['nome_refeicao'] ?? 'Refeição',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
