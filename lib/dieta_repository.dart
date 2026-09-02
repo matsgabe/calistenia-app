@@ -70,4 +70,23 @@ class DietaRepository {
       'gorduras': totalGord,
     };
   }
+
+  Future<void> salvarRefeicao({
+    required int usuarioId,
+    required String nome,
+    required int calorias,
+    required int proteinas,
+    required int carboidratos,
+    required int gorduras,
+  }) async {
+    await _supabase.from('refeicoes').insert({
+      'usuario_id': usuarioId,
+      'nome': nome,
+      'calorias': calorias,
+      'proteinas_g': proteinas,
+      'carboidratos_g': carboidratos,
+      'gorduras_g': gorduras,
+      'data': DateTime.now().toIso8601String().split('T')[0],
+    });
+  }
 }

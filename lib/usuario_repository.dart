@@ -116,4 +116,14 @@ class UsuarioRepository {
         dataTreino.month == hoje.month &&
         dataTreino.day == hoje.day;
   }
+
+  Future<void> registrarTreinoConcluido(int usuarioId) async {
+    final hoje = DateTime.now().toIso8601String().split('T')[0];
+
+    await _supabase.from('historico_treinos').insert({
+      'usuario_id': usuarioId,
+      'data_conclusao': hoje,
+      'concluido': true,
+    });
+  }
 }

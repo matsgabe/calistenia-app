@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
+import 'app_cache.dart';
 import 'dieta_repository.dart';
-import 'nutricao_ia_service.dart';
+import 'nutricao_ia_service.dart'; // Ajuste caso seu serviço de IA de refeições esteja em outro arquivo
 
 class DietaScreen extends StatefulWidget {
   final int usuarioId;
@@ -13,9 +13,12 @@ class DietaScreen extends StatefulWidget {
 }
 
 class _DietaScreenState extends State<DietaScreen> {
-  final _repository = DietaRepository();
+  final _dietaRepository = DietaRepository();
+  final _descricaoController = TextEditingController();
+
   List<Map<String, dynamic>> _refeicoes = [];
   bool _isLoading = true;
+  bool _analisandoIA = false;
 
   @override
   void initState() {
@@ -25,238 +28,230 @@ class _DietaScreenState extends State<DietaScreen> {
 
   Future<void> _carregarRefeicoes() async {
     try {
-      final dados = await _repository.buscarRefeicoesDoDia(widget.usuarioId);
+      final refeicoes = await _dietaRepository.buscarRefeicoesDoDia(
+        widget.usuarioId,
+      );
       if (mounted) {
         setState(() {
-          _refeicoes = dados;
+          _refeicoes = refeicoes;
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('Erro ao carregar dieta: $e');
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar refeições: $e')),
+        );
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  void _abrirModalInteligente() {
-    final descricaoController = TextEditingController();
-    XFile? imagemSelecionada;
-    bool processandoIA = false;
+  Future<void> _adicionarRefeicaoComIA() async {
+    final texto = _descricaoController.text.trim();
+    if (texto.isEmpty) return;
 
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.grey.shade900,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 16,
-                right: 16,
-                top: 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.auto_awesome, color: Colors.greenAccent),
-                      SizedBox(width: 8),
-                      Text(
-                        'Nutricionista IA',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Descreva o que você comeu ou envie uma foto do prato. A IA calcula os macros para você!',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
+    setState(() => _analisandoIA = true);
 
-                  TextField(
-                    controller: descricaoController,
-                    maxLines: 3,
-                    decoration: const InputDecoration(
-                      hintText: 'Ex: 2 ovos mexidos, 1 fatia de pão integral e um café com leite...',
-                      filled: true,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+    try {
+      // Chama a IA para analisar os macros do que foi digitado (ex: "2 ovos e 1 banana")
+      final resultadoIA = await NutricaoIAService.analisarRefeicao(
+        descricao: texto,
+      );
 
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () async {
-                          final picker = ImagePicker();
-                          final foto = await picker.pickImage(
-                            source: ImageSource.camera,
-                          );
-                          if (foto != null) {
-                            setModalState(() {
-                              imagemSelecionada = foto;
-                            });
-                          }
-                        },
-                        icon: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.greenAccent,
-                        ),
-                        label: Text(
-                          imagemSelecionada == null
-                              ? 'Tirar Foto do Prato'
-                              : 'Foto Anexada 📷',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.greenAccent,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      onPressed: processandoIA
-                          ? null
-                          : () async {
-                              if (descricaoController.text.isEmpty &&
-                                  imagemSelecionada == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Insira uma descrição ou tire uma foto.',
-                                    ),
-                                  ),
-                                );
-                                return;
-                              }
-
-                              setModalState(() => processandoIA = true);
-
-                              try {
-                                final bytes = imagemSelecionada != null
-                                    ? await imagemSelecionada!.readAsBytes()
-                                    : null;
-
-                                final resultadoIA =
-                                    await NutricaoIAService.analisarRefeicao(
-                                      descricao: descricaoController.text,
-                                      imagemBytes: bytes,
-                                    );
-
-                                if (resultadoIA != null && mounted) {
-                                  await _repository.registrarRefeicao(
-                                    usuarioId: widget.usuarioId,
-                                    nome: resultadoIA['nome'],
-                                    calorias: resultadoIA['calorias'],
-                                    proteinas: resultadoIA['proteinas'],
-                                    carboidratos: resultadoIA['carboidratos'],
-                                    gorduras: resultadoIA['gorduras'],
-                                  );
-
-                                  if (context.mounted) {
-                                    Navigator.pop(
-                                      context,
-                                    );
-                                  }
-                                  _carregarRefeicoes();
-                                }
-                              } catch (e) {
-                                debugPrint('Erro na IA: $e');
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'Erro ao analisar com IA: $e',
-                                      ),
-                                    ),
-                                  );
-                                }
-                                setModalState(() => processandoIA = false);
-                              }
-                            },
-                      child: processandoIA
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                color: Colors.black,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Text(
-                              'ANALISAR E SALVAR COM IA',
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
-              ),
-            );
-          },
+      if (resultadoIA != null) {
+        await _dietaRepository.salvarRefeicao(
+          usuarioId: widget.usuarioId,
+          nome: texto,
+          calorias: resultadoIA['calorias'] ?? 0,
+          proteinas: resultadoIA['proteinas_g'] ?? 0,
+          carboidratos: resultadoIA['carboidratos_g'] ?? 0,
+          gorduras: resultadoIA['gorduras_g'] ?? 0,
         );
-      },
-    );
+
+        _descricaoController.clear();
+        await _carregarRefeicoes();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Refeição registrada com sucesso! 🥗'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao analisar refeição com IA: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _analisandoIA = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Recupera a análise nutricional gerada pela IA no onboarding
+    final planoCache = AppCache.planoAtual;
+    final analiseNutricional =
+        planoCache?['analise_nutricional'] ??
+        planoCache?['resumo_analise'] ??
+        'Diretrizes nutricionais estruturadas para o seu objetivo.';
+
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.greenAccent),
+      );
+    }
+
     return Scaffold(
-      body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: Colors.greenAccent),
-            )
-          : _refeicoes.isEmpty
-          ? const Center(
-              child: Text(
-                'Nenhuma refeição registrada hoje.\nClique no + para registrar com IA.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey),
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _refeicoes.length,
-              itemBuilder: (context, index) {
-                final ref = _refeicoes[index];
-                return Card(
-                  color: Colors.grey.shade900,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.restaurant,
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          // --- CARD DE PARECER DA NUTRICIONISTA IA ---
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.greenAccent.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.restaurant_menu,
                       color: Colors.greenAccent,
+                      size: 20,
                     ),
-                    title: Text(
-                      ref['nome_refeicao'],
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    SizedBox(width: 8),
+                    Text(
+                      'Diretrizes da Nutricionista IA',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.greenAccent,
+                      ),
                     ),
-                    subtitle: Text(
-                      '${ref['calorias']} kcal | Prot: ${ref['proteinas_g']}g | Carb: ${ref['carboidratos_g']}g | Gord: ${ref['gorduras_g']}g',
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  analiseNutricional,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // --- CAMPO PARA REGISTRAR REFEIÇÃO COM IA ---
+          const Text(
+            'Registrar Refeição',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _descricaoController,
+                  decoration: const InputDecoration(
+                    hintText: 'Ex: 200g de frango e 1 batata doce',
+                    border: OutlineInputBorder(),
+                    filled: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: _analisandoIA ? null : _adicionarRefeicaoComIA,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.greenAccent,
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 18,
+                  ),
+                ),
+                child: _analisandoIA
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.black,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.add),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // --- LISTA DE REFEIÇÕES DO DIA ---
+          const Text(
+            'Refeições de Hoje',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+
+          _refeicoes.isEmpty
+              ? const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32.0),
+                  child: Center(
+                    child: Text(
+                      'Nenhuma refeição registrada hoje.',
+                      style: TextStyle(color: Colors.grey),
                     ),
                   ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _abrirModalInteligente,
-        backgroundColor: Colors.greenAccent,
-        child: const Icon(Icons.add_a_photo, color: Colors.black),
+                )
+              : ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _refeicoes.length,
+                  itemBuilder: (context, index) {
+                    final ref = _refeicoes[index];
+                    return Card(
+                      color: Colors.grey.shade900,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        title: Text(
+                          ref['nome'] ?? 'Refeição',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'P: ${ref['proteinas_g']}g | C: ${ref['carboidratos_g']}g | G: ${ref['gorduras_g']}g',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: Text(
+                          '${ref['calorias']} kcal',
+                          style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ],
       ),
     );
   }

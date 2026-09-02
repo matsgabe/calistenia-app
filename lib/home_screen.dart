@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import 'app_cache.dart';
 import 'dieta_screen.dart';
 import 'treino_screen.dart';
 import 'usuario_repository.dart';
 import 'historico_screen.dart';
 import 'dieta_repository.dart';
+import 'detalhes_treino_screen.dart'; // Import da tela de detalhes do treino
 
 class HomeScreen extends StatefulWidget {
   final int usuarioId;
@@ -101,9 +103,60 @@ class _HomeScreenState extends State<HomeScreen> {
     final carbAtual = _totaisConsumidos['carboidratos'] ?? 0;
     final gordAtual = _totaisConsumidos['gorduras'] ?? 0;
 
+    // Recupera dados adicionais gerados pela IA (se salvos no plano ou em cache)
+    final planoCache = AppCache.planoAtual;
+    final resumoAnalise =
+        planoCache?['resumo_analise'] ??
+        _planoData?['resumo_analise'] ??
+        'Seu plano inteligente está ativo e estruturado sob medida.';
+    final nomeTreinoIA =
+        planoCache?['treino_sugerido_nome'] ??
+        _planoData?['treino_sugerido_nome'] ??
+        'Treino do Dia: Calistenia';
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
+        // --- CARD DE PARECER DA NUTRI & PERSONAL IA ---
+        Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: Colors.greenAccent.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.psychology, color: Colors.greenAccent, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Análise Nutri & Personal IA',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.greenAccent,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                resumoAnalise,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // --- RESUMO DIÁRIO (METAS E MACROS) ---
         Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
@@ -137,28 +190,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
         const SizedBox(height: 24),
 
-        // --- CARD DE TREINO DO DIA ---
+        // --- CARD DE TREINO DO DIA (COM GUIA INTERATIVO) ---
         InkWell(
           onTap: () async {
-            if (_treinoConcluidoHoje) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Você já concluiu o treino de hoje! Bom descanso. 🏆',
-                  ),
-                  backgroundColor: Colors.green,
-                ),
-              );
-              return;
-            }
-
-            await Navigator.push(
+            // Se o usuário quiser ver os detalhes da IA ou executar o treino
+            Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => TreinoScreen(usuarioId: widget.usuarioId),
+                builder: (context) => DetalhesTreinoScreen(
+                  dadosPlano: AppCache.planoAtual ?? _planoData ?? {},
+                  usuarioId: widget.usuarioId, // Adicionado aqui
+                ),
               ),
             );
-            _carregarDashboard();
           },
           borderRadius: BorderRadius.circular(12),
           child: Container(
@@ -166,54 +210,22 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: BoxDecoration(
               color: Colors.grey.shade900,
               borderRadius: BorderRadius.circular(12),
-              border: _treinoConcluidoHoje
-                  ? Border.all(color: Colors.green.withOpacity(0.3))
-                  : null,
+              border: Border.all(color: Colors.greenAccent.withOpacity(0.2)),
             ),
             child: Row(
               children: [
-                // ÍCONE COM PROGRESSO CIRCULAR
-                SizedBox(
-                  width: 50,
-                  height: 50,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 50,
-                        height: 50,
-                        child: CircularProgressIndicator(
-                          value: _treinoConcluidoHoje ? 1.0 : 0.0,
-                          strokeWidth: 3,
-                          backgroundColor: Colors.grey.shade800,
-                          color: Colors.greenAccent,
-                        ),
-                      ),
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: _treinoConcluidoHoje
-                              ? Colors.greenAccent.withOpacity(0.2)
-                              : Colors.deepPurple.withOpacity(0.2),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          _treinoConcluidoHoje
-                              ? Icons.check
-                              : Icons.fitness_center,
-                          color: _treinoConcluidoHoje
-                              ? Colors.greenAccent
-                              : Colors.deepPurpleAccent,
-                          size: 20,
-                        ),
-                      ),
-                    ],
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.greenAccent.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.fitness_center,
+                    color: Colors.greenAccent,
                   ),
                 ),
                 const SizedBox(width: 16),
-
-                // TEXTOS DO TREINO
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -221,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         _treinoConcluidoHoje
                             ? 'Treino Concluído! 🏆'
-                            : 'Treino do Dia: Push',
+                            : nomeTreinoIA,
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -232,9 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _treinoConcluidoHoje
-                            ? 'Bom descanso. Até amanhã!'
-                            : 'Peito, Ombro e Tríceps\nNível: Iniciante',
+                        _treinoConcluidoHoje ? 'Bom descanso. Até amanhã!' : 'Toque para ver o guia de exercícios e instruções',
                         style: const TextStyle(
                           color: Colors.grey,
                           fontSize: 13,

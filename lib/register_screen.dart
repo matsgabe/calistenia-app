@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'onboarding_screen.dart';
 import 'usuario_repository.dart';
 
@@ -21,8 +22,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       try {
         final repository = UsuarioRepository();
         final username = _usernameController.text.trim();
+        final senha = _senhaController.text.trim();
 
-        // Valida se o username já está em uso
+        // 1. Valida se o username já está em uso
         final existe = await repository.verificarUsernameExiste(username);
         if (existe) {
           if (mounted) {
@@ -35,14 +37,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
           return;
         }
 
+        // 2. Cadastra o usuário no banco e obtém o ID gerado
+        final novoUsuarioId = await repository.cadastrarUsuario(
+          username: username,
+          senha: senha,
+          nome: '', // Passado vazio provisoriamente para ser preenchido na anamnese
+          genero: 'M',
+          dataNascimento: DateTime(2000, 1, 1),
+          alturaCm: 0,
+        );
+
         if (mounted) {
-          Navigator.push(
+          // 3. Avança para o Onboarding inteligente passando o ID do usuário
+          Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => OnboardingScreen(
-                username: username,
-                senha: _senhaController.text.trim(),
-              ),
+              builder: (context) => OnboardingScreen(usuarioId: novoUsuarioId),
             ),
           );
         }
