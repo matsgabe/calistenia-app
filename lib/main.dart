@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await dotenv.load(fileName: ".env");
 
   await Supabase.initialize(
     url: 'https://gjupbdselwkmolbeocwa.supabase.co',
@@ -23,6 +26,7 @@ class MyApp extends StatelessWidget {
       title: 'Calistenia App',
       theme: ThemeData.dark(),
       home: const LoginScreen(),
+      debugShowCheckedModeBanner: false,
     );
   }
 }
