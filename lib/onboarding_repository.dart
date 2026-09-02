@@ -12,6 +12,24 @@ class OnboardingRepository {
   final String _geminiApiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
   final String _geminiBackupKey = dotenv.env['GEMINI_BACKUP_KEY'] ?? '';
 
+  // Método auxiliar para buscar o histórico recente de treinos do usuário no Supabase
+  Future<List<Map<String, dynamic>>> _buscarHistoricoRecente(
+    int usuarioId,
+  ) async {
+    try {
+      final resposta = await _supabase
+          .from('historico_fisico')
+          .select()
+          .eq('usuario_id', usuarioId)
+          .order('created_at', ascending: false)
+          .limit(5);
+      return List<Map<String, dynamic>>.from(resposta);
+    } catch (e) {
+      // Retorna vazio caso a tabela ainda esteja vazia ou com outro nome de coluna
+      return [];
+    }
+  }
+
   Future<Map<String, dynamic>> processarEPlanoIA({
     required int usuarioId,
     required double peso,
@@ -25,6 +43,9 @@ class OnboardingRepository {
     required bool lesaoOmbro,
   }) async {
     Map<String, dynamic>? dadosPlano;
+
+    // Busca o histórico recente para que a IA conheça o que foi treinado nos dias anteriores
+    final historicoRecente = await _buscarHistoricoRecente(usuarioId);
 
     // TENTATIVA 1: Motor Principal (Gemini)
     try {
@@ -40,6 +61,7 @@ class OnboardingRepository {
         consomeCarne: consomeCarne,
         lesaoLombar: lesaoLombar,
         lesaoOmbro: lesaoOmbro,
+        historicoRecente: historicoRecente,
       );
     } catch (e) {
       debugPrint(
@@ -62,6 +84,7 @@ class OnboardingRepository {
           consomeCarne: consomeCarne,
           lesaoLombar: lesaoLombar,
           lesaoOmbro: lesaoOmbro,
+          historicoRecente: historicoRecente,
         );
       } catch (backupError) {
         debugPrint(
@@ -74,7 +97,9 @@ class OnboardingRepository {
           'proteinas_g_alvo': (peso * 2.0).toInt(),
           'carboidratos_g_alvo': 250,
           'gorduras_g_alvo': 70,
-          'resumo_analise': 'Perfil avaliado pelo sistema de segurança. Foco em progressão segura na calistenia respeitando sua estrutura.',
+          'analise_nutricional':
+              'Diretrizes alimentares ajustadas por segurança.',
+          'analise_treino': 'Perfil avaliado pelo sistema de segurança. Foco em progressão segura na calistenia respeitando sua estrutura.',
           'treino_sugerido_nome': 'Fullbody Iniciante Seguro',
           'treino_descricao':
               'Série focada em fortalecimento global sem sobrecarga articular.',
@@ -118,6 +143,7 @@ class OnboardingRepository {
     required bool consomeCarne,
     required bool lesaoLombar,
     required bool lesaoOmbro,
+    required List<Map<String, dynamic>> historicoRecente,
   }) async {
     final model = GenerativeModel(
       model: modelName,
@@ -127,29 +153,35 @@ class OnboardingRepository {
 
     final prompt =
         '''
-    Atue como um nutricionista esportivo e personal trainer especialista em calistenia de elite.
-    Dados do aluno:
+    Atue como um personal trainer e nutricionista de elite especialista em calistenia pura (Street Workout e treinamento estritamente com o peso corporal, sem pesos livres ou aparelhos de academia).
+    
+    Contexto do usuário:
+    - Histórico recente de treinos executados: $historicoRecente
     - Peso: $peso kg, Altura: $altura cm, Idade: $idade anos, Sexo: $sexo
-    - Objetivo: $objetivo, Experiência: $experiencia
+    - Objetivo: $objetivo, Experiência: $experiencia (Iniciante, Intermediário ou Avançado)
     - Consome carne: $consomeCarne
-    - Lesão lombar: $lesaoLombar
-    - Lesão ombro: $lesaoOmbro
+    - Lesão lombar: $lesaoLombar | Lesão ombro: $lesaoOmbro
 
-    Retorne obrigatoriamente um objeto JSON estruturado exatamente com estas chaves:
+    DIRETRIZES INTELIGENTES:
+    - Analise o histórico recente fornecido para garantir variação de estímulos para hoje (evite repetições excessivas do mesmo grupo muscular treinado nos dias anteriores).
+    - Os exercícios DEVEM utilizar APENAS o peso corporal (ex: flexões, pranchas, agachamentos livres, barras, etc.). NUNCA sugira halteres, anilhas ou máquinas.
+    - Adapte rigorosamente a dieta e o treino de acordo com a restrição de carne e com as lesões informadas.
+
+    Retorne obrigatoriamente um objeto JSON estruturado exatamente com as chaves:
     - "calorias_alvo": int,
     - "proteinas_g_alvo": int,
     - "carboidratos_g_alvo": int,
     - "gorduras_g_alvo": int,
-    - "analise_nutricional": "Texto focado exclusivamente na estratégia alimentar, distribuição de macros, fontes de proteína e adaptação para consumo de carne.",
-    - "analise_treino": "Texto focado na estratégia de treino, calistenia, proteções articulares para a lombar e ombros.",
-    - "treino_sugerido_nome": "Nome do Treino",
-    - "treino_descricao": "Breve descrição dos blocos",
+    - "analise_nutricional": "Diretrizes alimentares detalhadas para hoje...",
+    - "analise_treino": "Diretrizes de calistenia corporal e biomecânica para hoje...",
+    - "treino_sugerido_nome": "Nome do Treino (ex: Calistenia Bodyweight - Push)",
+    - "treino_descricao": "Descrição focada em controle corporal",
     - "exercicios": [
         {
-          "nome": "Nome do exercício",
+          "nome": "Flexão Tradicional com Joelhos Apoiados",
           "series": "3",
-          "repeticoes": "8 a 12",
-          "instrucoes": "Passo a passo detalhado."
+          "repeticoes": "10 a 12",
+          "instrucoes": "Mantenha o corpo alinhado, desça controlando o tronco usando apenas o peso do corpo."
         }
       ]
     ''';

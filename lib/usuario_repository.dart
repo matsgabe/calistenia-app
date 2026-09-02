@@ -120,10 +120,23 @@ class UsuarioRepository {
   Future<void> registrarTreinoConcluido(int usuarioId) async {
     final hoje = DateTime.now().toIso8601String().split('T')[0];
 
-    await _supabase.from('historico_treinos').insert({
+    await _supabase.from('historico_fisico').insert({
       'usuario_id': usuarioId,
       'data_conclusao': hoje,
       'concluido': true,
     });
+  }
+
+  Future<List<Map<String, dynamic>>> buscarHistoricoRecente(
+    int usuarioId,
+  ) async {
+    final resposta = await _supabase
+        .from('historico_fisico')
+        .select()
+        .eq('usuario_id', usuarioId)
+        .order('created_at', ascending: false)
+        .limit(5); // Pega os últimos 5 registros para a IA analisar a sequência
+
+    return List<Map<String, dynamic>>.from(resposta);
   }
 }

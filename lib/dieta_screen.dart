@@ -1,8 +1,10 @@
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
+import 'package:image_picker/image_picker.dart';
 import 'app_cache.dart';
 import 'dieta_repository.dart';
-import 'nutricao_ia_service.dart'; // Ajuste caso seu serviço de IA de refeições esteja em outro arquivo
+import 'nutricao_ia_service.dart';
 
 class DietaScreen extends StatefulWidget {
   final int usuarioId;
@@ -15,67 +17,99 @@ class DietaScreen extends StatefulWidget {
 class _DietaScreenState extends State<DietaScreen> {
   final _dietaRepository = DietaRepository();
   final _descricaoController = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
 
   List<Map<String, dynamic>> _refeicoes = [];
+  List<dynamic> _sugestoesCardapio = [];
   bool _isLoading = true;
-  bool _analisandoIA = false;
+  bool _processandoIA = false;
 
   @override
   void initState() {
     super.initState();
-    _carregarRefeicoes();
+    _carregarDados();
   }
 
-  Future<void> _carregarRefeicoes() async {
+  Future<void> _carregarDados() async {
     try {
       final refeicoes = await _dietaRepository.buscarRefeicoesDoDia(
         widget.usuarioId,
       );
+
+      // Gera sugestões baseadas no cache do onboarding se disponíveis
+      final planoCache = AppCache.planoAtual;
+      final cardapioIA = await NutricaoIAService.gerarCardapioDiario(
+        peso: planoCache?['peso'] ?? 78.0,
+        consomeCarne: planoCache?['consome_carne'] ?? true,
+        objetivo: planoCache?['objetivo'] ?? 'Hipertrofia',
+      );
+
       if (mounted) {
         setState(() {
           _refeicoes = refeicoes;
+          _sugestoesCardapio = cardapioIA?['sugestoes'] ?? [];
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao carregar refeições: $e')),
-        );
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _adicionarRefeicaoComIA() async {
+  Future<void> _adicionarPorTexto() async {
     final texto = _descricaoController.text.trim();
     if (texto.isEmpty) return;
 
-    setState(() => _analisandoIA = true);
-
+    setState(() => _processandoIA = true);
     try {
-      // Chama a IA para analisar os macros do que foi digitado (ex: "2 ovos e 1 banana")
-      final resultadoIA = await NutricaoIAService.analisarRefeicao(
-        descricao: texto,
-      );
-
-      if (resultadoIA != null) {
+      final res = await NutricaoIAService.analisarRefeicao(descricao: texto);
+      if (res != null) {
         await _dietaRepository.salvarRefeicao(
           usuarioId: widget.usuarioId,
           nome: texto,
-          calorias: resultadoIA['calorias'] ?? 0,
-          proteinas: resultadoIA['proteinas_g'] ?? 0,
-          carboidratos: resultadoIA['carboidratos_g'] ?? 0,
-          gorduras: resultadoIA['gorduras_g'] ?? 0,
+          calorias: res['calorias'] ?? 0,
+          proteinas: res['proteinas_g'] ?? 0,
+          carboidratos: res['carboidratos_g'] ?? 0,
+          gorduras: res['gorduras_g'] ?? 0,
         );
-
         _descricaoController.clear();
-        await _carregarRefeicoes();
+        await _carregarDados();
+      }
+    } finally {
+      if (mounted) setState(() => _processandoIA = false);
+    }
+  }
 
+  // **REGISTRO INTELIGENTE VIA FOTO DO PRATO**
+  Future<void> _adicionarPorFoto() async {
+    final XFile? imagem = await _picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+    );
+    if (imagem == null) return;
+
+    setState(() => _processandoIA = true);
+    try {
+      Uint8List bytes = await imagem.readAsBytes();
+      final res = await NutricaoIAService.analisarRefeicaoPorFoto(bytes);
+
+      if (res != null) {
+        final nomePrato = res['nome_detectado'] ?? 'Refeição via Foto';
+        await _dietaRepository.salvarRefeicao(
+          usuarioId: widget.usuarioId,
+          nome: '📸 $nomePrato',
+          calorias: res['calorias'] ?? 0,
+          proteinas: res['proteinas_g'] ?? 0,
+          carboidratos: res['carboidratos_g'] ?? 0,
+          gorduras: res['gorduras_g'] ?? 0,
+        );
+        await _carregarDados();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Refeição registrada com sucesso! 🥗'),
+            SnackBar(
+              content: Text(
+                'IA identificou: $nomePrato registradas com sucesso! 🥗',
+              ),
               backgroundColor: Colors.green,
             ),
           );
@@ -84,26 +118,25 @@ class _DietaScreenState extends State<DietaScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao analisar refeição com IA: $e')),
+          SnackBar(content: Text('Erro ao analisar foto com IA: $e')),
         );
       }
     } finally {
-      if (mounted) setState(() => _analisandoIA = false);
+      if (mounted) setState(() => _processandoIA = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Recupera a análise nutricional gerada pela IA no onboarding
     final planoCache = AppCache.planoAtual;
     final analiseNutricional =
-        planoCache?['analise_nutricional'] ??
-        planoCache?['resumo_analise'] ??
-        'Diretrizes nutricionais estruturadas para o seu objetivo.';
+        planoCache?['analise_nutricional'] ?? 'Diretrizes nutricionais ativas.';
 
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.greenAccent),
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.greenAccent),
+        ),
       );
     }
 
@@ -111,7 +144,7 @@ class _DietaScreenState extends State<DietaScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          // --- CARD DE PARECER DA NUTRICIONISTA IA ---
+          // Diretrizes da Nutricionistas IA
           Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
@@ -154,9 +187,68 @@ class _DietaScreenState extends State<DietaScreen> {
           ),
           const SizedBox(height: 24),
 
-          // --- CAMPO PARA REGISTRAR REFEIÇÃO COM IA ---
+          // **SUGESTÕES DIÁRIAS (Café, Almoço, Lanche, Jantar)**
           const Text(
-            'Registrar Refeição',
+            'Cardápio Sugerido para Hoje',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 130,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _sugestoesCardapio.length,
+              itemBuilder: (context, index) {
+                final sug = _sugestoesCardapio[index];
+                return Container(
+                  width: 220,
+                  margin: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade900,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade800),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        sug['refeicao'] ?? 'Refeição',
+                        style: const TextStyle(
+                          color: Colors.greenAccent,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        sug['itens'] ?? '',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${sug['calorias']} kcal',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // **REGISTRAR REFEIÇÃO (TEXTO OU FOTO)**
+          const Text(
+            'Registrar Consumo Diário',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
@@ -166,48 +258,50 @@ class _DietaScreenState extends State<DietaScreen> {
                 child: TextField(
                   controller: _descricaoController,
                   decoration: const InputDecoration(
-                    hintText: 'Ex: 200g de frango e 1 batata doce',
+                    hintText: 'Ex: 2 ovos e 1 fatia de pão',
                     border: OutlineInputBorder(),
                     filled: true,
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              ElevatedButton(
-                onPressed: _analisandoIA ? null : _adicionarRefeicaoComIA,
-                style: ElevatedButton.styleFrom(
+              const SizedBox(width: 8),
+              // Botão Texto
+              IconButton(
+                onPressed: _processandoIA ? null : _adicionarPorTexto,
+                icon: const Icon(Icons.add, color: Colors.black),
+                style: IconButton.styleFrom(
                   backgroundColor: Colors.greenAccent,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 18,
-                  ),
                 ),
-                child: _analisandoIA
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: Colors.black,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : const Icon(Icons.add),
+              ),
+              const SizedBox(width: 4),
+              // **Botão Câmera / Foto do Prato**
+              IconButton(
+                onPressed: _processandoIA ? null : _adicionarPorFoto,
+                icon: const Icon(Icons.camera_alt, color: Colors.black),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.greenAccent,
+                ),
               ),
             ],
           ),
+          if (_processandoIA)
+            const Padding(
+              padding: EdgeInsets.all(12.0),
+              child: Center(
+                child: CircularProgressIndicator(color: Colors.greenAccent),
+              ),
+            ),
           const SizedBox(height: 24),
 
-          // --- LISTA DE REFEIÇÕES DO DIA ---
+          // Refeições Registradas
           const Text(
             'Refeições de Hoje',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-
           _refeicoes.isEmpty
               ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32.0),
+                  padding: EdgeInsets.symmetric(vertical: 24.0),
                   child: Center(
                     child: Text(
                       'Nenhuma refeição registrada hoje.',
