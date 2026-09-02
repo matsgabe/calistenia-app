@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'usuario_repository.dart';
+
 import 'treino_screen.dart';
+import 'usuario_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   final int usuarioId;
@@ -22,15 +23,21 @@ class _HomeScreenState extends State<HomeScreen> {
     _carregarDashboard();
   }
 
+  bool _treinoConcluidoHoje = false;
+
   Future<void> _carregarDashboard() async {
     try {
       final user = await _repository.buscarUsuario(widget.usuarioId);
       final plano = await _repository.buscarPlanoAtivo(widget.usuarioId);
+      final treinoHoje = await _repository.verificarTreinoConcluidoHoje(
+        widget.usuarioId,
+      ); // Busca o status
 
       if (mounted) {
         setState(() {
           _usuarioData = user;
           _planoData = plano;
+          _treinoConcluidoHoje = treinoHoje; // Atualiza o estado
           _isLoading = false;
         });
       }
@@ -44,40 +51,23 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildMacroIndicator(
-    String titulo,
-    int valorAlvo,
-    Color cor,
-    Key key,
-  ) {
-    // Como ainda não temos o consumo do dia, assumimos 0 para o MVP visual
-    double progresso = 0.0;
-
+  Widget _buildMacroCircle(String label, String value) {
     return Column(
       children: [
-        Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        SizedBox(
-          width: 60,
-          height: 60,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CircularProgressIndicator(
-                key: key,
-                value: progresso,
-                backgroundColor: Colors.grey.shade800,
-                color: cor,
-                strokeWidth: 6,
-              ),
-              Center(
-                child: Text(
-                  '0\n/$valorAlvo',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 10),
-                ),
-              ),
-            ],
+        Container(
+          width: 65,
+          height: 65,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.grey.shade800, width: 4),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            value,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12),
           ),
         ),
       ],
@@ -90,137 +80,181 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final nomeUsuario = _usuarioData?['nome'] ?? 'Atleta';
+    final nome = _usuarioData?['nome'] ?? 'Atleta';
     final caloriasAlvo = _planoData?['calorias_alvo'] ?? 0;
+    final protAlvo = _planoData?['proteinas_g_alvo'] ?? 0;
+    final carbAlvo = _planoData?['carboidratos_g_alvo'] ?? 0;
+    final gordAlvo = _planoData?['gorduras_g_alvo'] ?? 0;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Bora treinar, $nomeUsuario!'),
+        title: Text('Bora treinar, $nome!'),
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person),
-            onPressed: () {}, // Futuro acesso ao perfil
-          ),
-        ],
+        backgroundColor: Colors.transparent,
       ),
-      body: RefreshIndicator(
-        onRefresh: _carregarDashboard,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            // Card de Macros Metabólicos
-            Card(
-              key: const Key('card_macros'),
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade900,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Resumo Diário',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Meta: $caloriasAlvo kcal',
+                  style: const TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    const Text(
-                      'Resumo Diário',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Meta: $caloriasAlvo kcal',
-                      style: TextStyle(color: Colors.grey.shade400),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    // O 0 é fixo por enquanto, pois o consumo virá do registro de refeições futuramente
+                    _buildMacroCircle('Prot', '0\n/ $protAlvo'),
+                    _buildMacroCircle('Carb', '0\n/ $carbAlvo'),
+                    _buildMacroCircle('Gord', '0\n/ $gordAlvo'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // --- CARD DE TREINO DO DIA ---
+          InkWell(
+            onTap: () async {
+              // Navega para a tela de treino e aguarda o retorno
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      TreinoScreen(usuarioId: widget.usuarioId),
+                ),
+              );
+              // Quando o usuário voltar (após finalizar o treino), recarrega a Home
+              _carregarDashboard();
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(16.0),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade900,
+                borderRadius: BorderRadius.circular(12),
+                // Adiciona uma borda sutil verde se concluído
+                border: _treinoConcluidoHoje
+                    ? Border.all(color: Colors.green.withOpacity(0.3))
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  // ÍCONE COM PROGRESSO CIRCULAR
+                  SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: Stack(
+                      alignment: Alignment.center,
                       children: [
-                        _buildMacroIndicator(
-                          'Prot',
-                          _planoData?['proteinas_g_alvo'] ?? 0,
-                          Colors.blue,
-                          const Key('ring_prot'),
+                        // Círculo de progresso por fora
+                        SizedBox(
+                          width: 50,
+                          height: 50,
+                          child: CircularProgressIndicator(
+                            value: _treinoConcluidoHoje
+                                ? 1.0
+                                : 0.0, // 100% se concluído, 0% se pendente
+                            strokeWidth: 3,
+                            backgroundColor: Colors.grey.shade800,
+                            color: Colors.greenAccent,
+                          ),
                         ),
-                        _buildMacroIndicator(
-                          'Carb',
-                          _planoData?['carboidratos_g_alvo'] ?? 0,
-                          Colors.green,
-                          const Key('ring_carb'),
-                        ),
-                        _buildMacroIndicator(
-                          'Gord',
-                          _planoData?['gorduras_g_alvo'] ?? 0,
-                          Colors.orange,
-                          const Key('ring_gord'),
+                        // Ícone por dentro
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: _treinoConcluidoHoje
+                                ? Colors.greenAccent.withOpacity(0.2)
+                                : Colors.deepPurple.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _treinoConcluidoHoje
+                                ? Icons.check
+                                : Icons.fitness_center,
+                            color: _treinoConcluidoHoje
+                                ? Colors.greenAccent
+                                : Colors.deepPurpleAccent,
+                            size: 20,
+                          ),
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Card do Treino de Calistenia do Dia
-            Card(
-              key: const Key('card_treino_dia'),
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.deepPurple.withOpacity(0.2),
-                    shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.fitness_center,
-                    color: Colors.deepPurpleAccent,
-                  ),
-                ),
-                title: const Text(
-                  'Treino do Dia: Push',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: const Text(
-                  'Peito, Ombro e Tríceps\nNível: Iniciante',
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios),
-                isThreeLine: true,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          TreinoScreen(usuarioId: widget.usuarioId),
+                  const SizedBox(width: 16),
+
+                  // TEXTOS DO TREINO
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _treinoConcluidoHoje
+                              ? 'Treino Concluído! 🏆'
+                              : 'Treino do Dia: Push',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: _treinoConcluidoHoje
+                                ? Colors.greenAccent
+                                : Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _treinoConcluidoHoje
+                              ? 'Bom descanso. Até amanhã!'
+                              : 'Peito, Ombro e Tríceps\nNível: Iniciante',
+                          style: const TextStyle(
+                            color: Colors.grey,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
                     ),
-                  );
-                },
+                  ),
+                  const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: 0,
-        type: BottomNavigationBarType.fixed,
+        backgroundColor: Colors.black,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.grey,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
-            label: 'Dieta',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.restaurant), label: 'Dieta'),
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
             label: 'Histórico',
           ),
         ],
+        onTap: (index) {
+          // TODO: Adicionar lógica para trocar de aba
+        },
       ),
     );
   }

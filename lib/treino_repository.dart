@@ -7,7 +7,7 @@ class TreinoRepository {
   Future<int> salvarSessaoTreino({
     required int usuarioId,
     required String tipoTreino,
-    required int duracaoSegundos,
+    required duracaoSegundos,
   }) async {
     final response = await _supabase
         .from('treinos_realizados')
@@ -15,8 +15,6 @@ class TreinoRepository {
           'usuario_id': usuarioId,
           'tipo_treino': tipoTreino,
           'duracao_segundos': duracaoSegundos,
-          'data_registro': DateTime.now().toIso8601String().split('T')[0],
-          'status': 'Concluido',
         })
         .select('id')
         .single();
@@ -24,7 +22,6 @@ class TreinoRepository {
     return response['id'] as int;
   }
 
-  /// Salva o detalhamento de cada exercício executado na sessão
   Future<void> salvarDetalhesExercicios({
     required int treinoId,
     required List<Map<String, dynamic>> exercicios,
@@ -40,7 +37,7 @@ class TreinoRepository {
         'series_alvo': ex['series'],
         'series_concluidas': totalConcluidas,
         'feedback_esforco':
-            ex['feedback'] ?? 'Ideal', // Valor padrão caso não tenha avaliado
+            ex['feedback'] ?? 'Ideal',
       });
     }
   }

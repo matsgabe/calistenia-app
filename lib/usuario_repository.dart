@@ -87,14 +87,34 @@ class UsuarioRepository {
     });
   }
 
-  Future<Map<String, dynamic>> buscarPlanoAtivo(int usuarioId) async {
-    return await _supabase
+  Future<Map<String, dynamic>?> buscarPlanoAtivo(int usuarioId) async {
+    final response = await _supabase
         .from('plano_alimentar')
         .select()
         .eq('usuario_id', usuarioId)
         .eq('ativo', true)
         .order('id', ascending: false)
         .limit(1)
-        .single();
+        .maybeSingle();
+    return response;
+  }
+
+  Future<bool> verificarTreinoConcluidoHoje(int usuarioId) async {
+    final response = await _supabase
+        .from('treinos_realizados')
+        .select('data_realizacao')
+        .eq('usuario_id', usuarioId)
+        .order('data_realizacao', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (response == null) return false;
+
+    final dataTreino = DateTime.parse(response['data_realizacao']).toLocal();
+    final hoje = DateTime.now();
+
+    return dataTreino.year == hoje.year &&
+        dataTreino.month == hoje.month &&
+        dataTreino.day == hoje.day;
   }
 }
