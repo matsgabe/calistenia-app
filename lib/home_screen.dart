@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'dieta_screen.dart';
 import 'treino_screen.dart';
 import 'usuario_repository.dart';
 import 'historico_screen.dart';
+import 'dieta_repository.dart';
 
 class HomeScreen extends StatefulWidget {
   final int usuarioId;
@@ -20,6 +22,13 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _planoData;
   bool _isLoading = true;
   bool _treinoConcluidoHoje = false;
+  final _dietaRepository = DietaRepository();
+  Map<String, int> _totaisConsumidos = {
+    'calorias': 0,
+    'proteinas': 0,
+    'carboidratos': 0,
+    'gorduras': 0,
+  };
 
   @override
   void initState() {
@@ -34,12 +43,17 @@ class _HomeScreenState extends State<HomeScreen> {
       final treinoHoje = await _repository.verificarTreinoConcluidoHoje(
         widget.usuarioId,
       );
+      // Busca os totais da dieta do dia
+      final totaisDieta = await _dietaRepository.buscarTotaisDiarios(
+        widget.usuarioId,
+      );
 
       if (mounted) {
         setState(() {
           _usuarioData = user;
           _planoData = plano;
           _treinoConcluidoHoje = treinoHoje;
+          _totaisConsumidos = totaisDieta;
           _isLoading = false;
         });
       }
@@ -82,6 +96,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final carbAlvo = _planoData?['carboidratos_g_alvo'] ?? 0;
     final gordAlvo = _planoData?['gorduras_g_alvo'] ?? 0;
 
+    final kcalAtual = _totaisConsumidos['calorias'] ?? 0;
+    final protAtual = _totaisConsumidos['proteinas'] ?? 0;
+    final carbAtual = _totaisConsumidos['carboidratos'] ?? 0;
+    final gordAtual = _totaisConsumidos['gorduras'] ?? 0;
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
@@ -100,16 +119,16 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Meta: $caloriasAlvo kcal',
+                'Consumido: $kcalAtual / Meta: $caloriasAlvo kcal',
                 style: const TextStyle(color: Colors.grey),
               ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildMacroCircle('Prot', '0\n/ $protAlvo'),
-                  _buildMacroCircle('Carb', '0\n/ $carbAlvo'),
-                  _buildMacroCircle('Gord', '0\n/ $gordAlvo'),
+                  _buildMacroCircle('Prot', '$protAtual\n/ $protAlvo'),
+                  _buildMacroCircle('Carb', '$carbAtual\n/ $carbAlvo'),
+                  _buildMacroCircle('Gord', '$gordAtual\n/ $gordAlvo'),
                 ],
               ),
             ],
@@ -256,7 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ? _buildAbaHome()
           : (_abaAtual == 2
                 ? HistoricoScreen(usuarioId: widget.usuarioId)
-                : const Center(child: Text('Aba Dieta em construção...'))),
+                : DietaScreen(usuarioId: widget.usuarioId)),
 
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _abaAtual,
