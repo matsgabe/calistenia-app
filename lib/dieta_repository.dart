@@ -3,90 +3,60 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class DietaRepository {
   final _supabase = Supabase.instance.client;
 
-  Future<List<Map<String, dynamic>>> buscarRefeicoesDoDia(int usuarioId) async {
-    final hoje = DateTime.now();
-    final inicioDoDia = DateTime(
-      hoje.year,
-      hoje.month,
-      hoje.day,
-    ).toIso8601String();
-    final fimDoDia = DateTime(
-      hoje.year,
-      hoje.month,
-      hoje.day,
-      23,
-      59,
-      59,
-    ).toIso8601String();
-
+  // Busca os totais consumidos hoje (já devia existir, mas garantindo a estrutura)
+  Future<Map<String, int>> buscarTotaisDiarios(int usuarioId) async {
+    final hoje = DateTime.now().toIso8601String().split('T')[0];
     final response = await _supabase
         .from('consumo_alimentar')
         .select()
         .eq('usuario_id', usuarioId)
-        .gte('data_registro', inicioDoDia)
-        .lte('data_registro', fimDoDia)
-        .order('data_registro', ascending: false);
+        .eq('data_registro', hoje);
 
-    return List<Map<String, dynamic>>.from(response);
-  }
-
-  Future<void> registrarRefeicao({
-    required int usuarioId,
-    required String nome,
-    required int calorias,
-    required int proteinas,
-    required int carboidratos,
-    required int gorduras,
-  }) async {
-    await _supabase.from('consumo_alimentar').insert({
-      'usuario_id': usuarioId,
-      'nome_refeicao': nome,
-      'calorias': calorias,
-      'proteinas_g': proteinas,
-      'carboidratos_g': carboidratos,
-      'gorduras_g': gorduras,
-    });
-  }
-
-  Future<Map<String, int>> buscarTotaisDiarios(int usuarioId) async {
-    final refeicoes = await buscarRefeicoesDoDia(usuarioId);
-
-    int totalKcal = 0;
-    int totalProt = 0;
-    int totalCarb = 0;
-    int totalGord = 0;
-
-    for (var ref in refeicoes) {
-      totalKcal += (ref['calorias'] as num? ?? 0).toInt();
-      totalProt += (ref['proteinas_g'] as num? ?? 0).toInt();
-      totalCarb += (ref['carboidratos_g'] as num? ?? 0).toInt();
-      totalGord += (ref['gorduras_g'] as num? ?? 0).toInt();
+    int kcal = 0, prot = 0, carb = 0, gord = 0;
+    for (var item in response) {
+      kcal += (item['calorias'] as num?)?.toInt() ?? 0;
+      prot += (item['proteinas_g'] as num?)?.toInt() ?? 0;
+      carb += (item['carboidratos_g'] as num?)?.toInt() ?? 0;
+      gord += (item['gorduras_g'] as num?)?.toInt() ?? 0;
     }
-
     return {
-      'calorias': totalKcal,
-      'proteinas': totalProt,
-      'carboidratos': totalCarb,
-      'gorduras': totalGord,
+      'calorias': kcal,
+      'proteinas': prot,
+      'carboidratos': carb,
+      'gorduras': gord,
     };
   }
 
-  Future<void> salvarRefeicao({
+  // NOVO: Busca a lista de refeições de hoje para exibir na tela
+  Future<List<Map<String, dynamic>>> buscarRefeicoesDoDia(int usuarioId) async {
+    final hoje = DateTime.now().toIso8601String().split('T')[0];
+    final response = await _supabase
+        .from('consumo_alimentar')
+        .select()
+        .eq('usuario_id', usuarioId)
+        .eq('data_registro', hoje)
+        .order('created_at', ascending: false); // Mais recentes primeiro
+    return List<Map<String, dynamic>>.from(response);
+  }
+
+  // NOVO: Registra uma nova refeição no banco
+  Future<void> registrarRefeicao({
     required int usuarioId,
-    required String nome,
+    required String descricao,
     required int calorias,
     required int proteinas,
     required int carboidratos,
     required int gorduras,
   }) async {
-    await _supabase.from('refeicoes').insert({
+    final hoje = DateTime.now().toIso8601String().split('T')[0];
+    await _supabase.from('consumo_alimentar').insert({
       'usuario_id': usuarioId,
-      'nome': nome,
+      'data_registro': hoje,
+      'descricao': descricao,
       'calorias': calorias,
       'proteinas_g': proteinas,
       'carboidratos_g': carboidratos,
       'gorduras_g': gorduras,
-      'data': DateTime.now().toIso8601String().split('T')[0],
     });
   }
 }
