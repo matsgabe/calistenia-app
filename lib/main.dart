@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'login_screen.dart'; // Import da tela de login
+import 'login_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,7 +22,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Calistenia App',
       theme: ThemeData.dark(),
-      home: const LoginScreen(), // Inicia na tela de Login limpa
+      home: const LoginScreen(),
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class TreinoRepository {
   final _supabase = Supabase.instance.client;
 
-  /// Salva a sessão principal de treino e retorna o ID gerado
   Future<int> salvarSessaoTreino({
     required int usuarioId,
     required String tipoTreino,
@@ -27,7 +26,6 @@ class TreinoRepository {
     required List<Map<String, dynamic>> exercicios,
   }) async {
     for (var ex in exercicios) {
-      // Conta quantas séries foram marcadas como true
       final concluidasList = ex['concluidas'] as List<bool>;
       final totalConcluidas = concluidasList.where((c) => c).length;
 
@@ -36,9 +34,20 @@ class TreinoRepository {
         'nome_exercicio': ex['nome'],
         'series_alvo': ex['series'],
         'series_concluidas': totalConcluidas,
-        'feedback_esforco':
-            ex['feedback'] ?? 'Ideal',
+        'feedback_esforco': ex['feedback'] ?? 'Ideal',
       });
     }
+  }
+
+  Future<List<Map<String, dynamic>>> buscarHistoricoTreinos(
+    int usuarioId,
+  ) async {
+    final response = await _supabase
+        .from('treinos_realizados')
+        .select()
+        .eq('usuario_id', usuarioId)
+        .order('data_realizacao', ascending: false);
+
+    return List<Map<String, dynamic>>.from(response);
   }
 }

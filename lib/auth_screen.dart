@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'register_screen.dart';
 import 'home_screen.dart';
 import 'usuario_repository.dart';
@@ -26,13 +25,11 @@ class _AuthScreenState extends State<AuthScreen> {
         final username = _usernameController.text.trim();
         final senha = _senhaController.text.trim();
 
-        // Valida as credenciais estritamente no banco de dados
         final usuario = await repository.fazerLogin(username, senha);
 
         if (!mounted) return;
 
         if (usuario != null) {
-          // Login bem-sucedido, direciona para a Home
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -40,7 +37,6 @@ class _AuthScreenState extends State<AuthScreen> {
             ),
           );
         } else {
-          // Username não existe ou senha incorreta (evita criação fantasma)
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Username ou senha inválidos. Verifique os dados.'),

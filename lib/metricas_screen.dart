@@ -26,13 +26,10 @@ class _MetricasScreenState extends State<MetricasScreen> {
       try {
         final repository = UsuarioRepository();
         final peso = double.parse(_pesoController.text.replaceAll(',', '.'));
-
-        // 1. Busca os dados imutáveis do usuário (altura, gênero, nascimento)
         final usuarioData = await repository.buscarUsuario(widget.usuarioId);
         final dataNascimento = DateTime.parse(usuarioData['data_nascimento']);
         final idade = CalculadoraMetabolica.calcularIdade(dataNascimento);
 
-        // 2. Aciona o motor para calcular a dieta
         final plano = CalculadoraMetabolica.calcularPlano(
           pesoKg: peso,
           alturaCm: usuarioData['altura_cm'],
@@ -42,7 +39,6 @@ class _MetricasScreenState extends State<MetricasScreen> {
           objetivo: _objetivoSelecionado,
         );
 
-        // 3. Salva os registros no banco
         await repository.registrarMetricas(
           usuarioId: widget.usuarioId,
           pesoKg: peso,

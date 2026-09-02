@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 class UsuarioRepository {
   final _supabase = Supabase.instance.client;
 
-  // Valida login conferindo username e senha
   Future<Map<String, dynamic>?> fazerLogin(
     String username,
     String senha,

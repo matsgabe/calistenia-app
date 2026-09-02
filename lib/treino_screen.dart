@@ -1,7 +1,5 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
-
 import 'treino_repository.dart';
 
 class TreinoScreen extends StatefulWidget {
@@ -13,7 +11,6 @@ class TreinoScreen extends StatefulWidget {
 }
 
 class _TreinoScreenState extends State<TreinoScreen> {
-  // Timers
   int _segundosTotais = 0;
   Timer? _timerGlobal;
 
@@ -23,7 +20,6 @@ class _TreinoScreenState extends State<TreinoScreen> {
 
   bool _isLoading = false;
 
-  // Mock de dados: O treino puxado do banco virá neste formato
   final List<Map<String, dynamic>> _exercicios = [
     {
       'id': 1,
@@ -63,7 +59,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
   void _iniciarDescanso() {
     _timerDescanso?.cancel();
     setState(() {
-      _tempoDescanso = 60; // 60 segundos de descanso padrão
+      _tempoDescanso = 60;
       _emDescanso = true;
     });
 
@@ -95,15 +91,14 @@ class _TreinoScreenState extends State<TreinoScreen> {
     }
   }
 
-  // NOVO: Validação que verifica se TODAS as séries de TODOS os exercícios estão true
   bool get _treinoCompleto {
     for (var exercicio in _exercicios) {
       List<bool> concluidas = exercicio['concluidas'];
       if (concluidas.contains(false)) {
-        return false; // Se achar pelo menos um false, o treino não está completo
+        return false;
       }
     }
-    return true; // Se passar por tudo, está completo!
+    return true;
   }
 
   Future<void> _finalizarTreino() async {
@@ -112,14 +107,12 @@ class _TreinoScreenState extends State<TreinoScreen> {
     try {
       final repository = TreinoRepository();
 
-      // 1. Grava a sessão (cabeçalho)
       final treinoId = await repository.salvarSessaoTreino(
         usuarioId: widget.usuarioId,
-        tipoTreino: 'Push', // Fixo neste momento, será dinâmico depois
+        tipoTreino: 'Push',
         duracaoSegundos: _segundosTotais,
       );
 
-      // 2. Grava as linhas de cada exercício
       await repository.salvarDetalhesExercicios(
         treinoId: treinoId,
         exercicios: _exercicios,
@@ -129,7 +122,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Treino salvo com sucesso! 💪')),
         );
-        Navigator.pop(context); // Volta para a Home
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
@@ -145,13 +138,11 @@ class _TreinoScreenState extends State<TreinoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // PopScope intercepta a tentativa de voltar para a tela anterior
     return PopScope(
-      canPop: false, // Impede o fechamento automático
+      canPop: false,
       onPopInvoked: (didPop) async {
-        if (didPop) return; // Se já fechou, ignora
+        if (didPop) return;
 
-        // Exibe o alerta na tela
         final sair = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
@@ -166,7 +157,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
                 onPressed: () => Navigator.pop(
                   context,
                   false,
-                ), // Fecha o modal e fica na tela
+                ),
                 child: const Text(
                   'CONTINUAR',
                   style: TextStyle(color: Colors.white),
@@ -174,7 +165,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
               ),
               TextButton(
                 onPressed: () =>
-                    Navigator.pop(context, true), // Confirma a saída
+                    Navigator.pop(context, true),
                 child: const Text(
                   'SAIR',
                   style: TextStyle(color: Colors.redAccent),
@@ -184,7 +175,6 @@ class _TreinoScreenState extends State<TreinoScreen> {
           ),
         );
 
-        // Se o usuário clicou em "SAIR" (true), forçamos a saída da tela
         if (sair == true && mounted) {
           Navigator.pop(context);
         }
@@ -194,7 +184,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize
-                .min, // Centraliza perfeitamente ignorando o botão de voltar
+                .min,
             children: [
               const Icon(Icons.timer, size: 20),
               const SizedBox(width: 8),
@@ -276,7 +266,7 @@ class _TreinoScreenState extends State<TreinoScreen> {
                                 title: Text('Série ${serieIndex + 1}'),
                                 subtitle: Text(exercicio['reps']),
                                 value: isConcluida,
-                                activeColor: Colors.greenAccent, // Mudei para verde para combinar com sucesso
+                                activeColor: Colors.greenAccent,
                                 checkColor: Colors.black,
                                 tileColor: isConcluida
                                     ? Colors.white10
@@ -298,20 +288,18 @@ class _TreinoScreenState extends State<TreinoScreen> {
             ),
           ],
         ),
-        // NOVO: Botão de finalizar movido para o rodapé da tela
         bottomNavigationBar: SafeArea(
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: ElevatedButton(
               key: const Key('btn_finalizar_treino'),
-              // Se o treino NÃO estiver completo, envia null (desabilita o botão automaticamente)
               onPressed: (_treinoCompleto && !_isLoading)
                   ? _finalizarTreino
                   : null,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: Colors.greenAccent,
-                foregroundColor: Colors.black, // Cor do texto quando ativado
+                foregroundColor: Colors.black,
                 disabledBackgroundColor: Colors.grey.shade800,
                 disabledForegroundColor: Colors.grey.shade500,
                 shape: RoundedRectangleBorder(
@@ -335,10 +323,10 @@ class _TreinoScreenState extends State<TreinoScreen> {
                         letterSpacing: 1.2,
                       ),
                     ),
-            ), // Fecha o ElevatedButton
-          ), // Fecha o Padding
-        ), // Fecha o SafeArea (bottomNavigationBar)
-      ), // Fecha o Scaffold
-    ); // Fecha o PopScope (Era este que estava faltando!)
+            ), 
+          ), 
+        ), 
+      ), 
+    ); 
   }
 }
