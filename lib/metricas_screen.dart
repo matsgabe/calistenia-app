@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'usuario_repository.dart';
 import 'calculadora_metabolica.dart';
 import 'home_screen.dart';
@@ -27,31 +28,36 @@ class _MetricasScreenState extends State<MetricasScreen> {
         final repository = UsuarioRepository();
         final peso = double.parse(_pesoController.text.replaceAll(',', '.'));
         final usuarioData = await repository.buscarUsuario(widget.usuarioId);
-        final dataNascimento = DateTime.parse(usuarioData['data_nascimento']);
+
+        // Proteção contra dados nulos no mapa retornado
+        final dataNascimentoStr = usuarioData?['data_nascimento'];
+        final dataNascimento = dataNascimentoStr != null
+            ? DateTime.parse(dataNascimentoStr)
+            : DateTime(2000, 1, 1);
+
         final idade = CalculadoraMetabolica.calcularIdade(dataNascimento);
 
         final plano = CalculadoraMetabolica.calcularPlano(
           pesoKg: peso,
-          alturaCm: usuarioData['altura_cm'],
+          alturaCm: usuarioData?['altura_cm'] ?? 170.0,
           idadeAnos: idade,
-          genero: usuarioData['genero'],
+          genero: usuarioData?['genero'] ?? 'M',
           nivelAtividade: _atividadeSelecionada,
           objetivo: _objetivoSelecionado,
         );
 
         await repository.registrarMetricas(
           usuarioId: widget.usuarioId,
-          pesoKg: peso,
-          objetivo: _objetivoSelecionado,
-          nivelAtividade: _atividadeSelecionada,
+          peso: peso,
+          altura: usuarioData?['altura_cm'] ?? 170.0,
         );
 
         await repository.gravarPlanoAlimentar(
           usuarioId: widget.usuarioId,
-          caloriasAlvo: plano.caloriasAlvo,
-          proteinasG: plano.proteinasG,
-          carboidratosG: plano.carboidratosG,
-          gordurasG: plano.gordurasG,
+          calorias: plano.caloriasAlvo,
+          proteinas: plano.proteinasG,
+          carboidratos: plano.carboidratosG,
+          gorduras: plano.gordurasG,
         );
 
         if (mounted) {
@@ -68,7 +74,9 @@ class _MetricasScreenState extends State<MetricasScreen> {
               .showSnackBar(SnackBar(content: Text('Erro ao gerar plano: $e')));
         }
       } finally {
-        setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
       }
     }
   }

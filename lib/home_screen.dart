@@ -6,7 +6,7 @@ import 'treino_screen.dart';
 import 'usuario_repository.dart';
 import 'historico_screen.dart';
 import 'dieta_repository.dart';
-import 'detalhes_treino_screen.dart'; // Import da tela de detalhes do treino
+import 'detalhes_treino_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final int usuarioId;
@@ -45,7 +45,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final treinoHoje = await _repository.verificarTreinoConcluidoHoje(
         widget.usuarioId,
       );
-      // Busca os totais da dieta do dia
       final totaisDieta = await _dietaRepository.buscarTotaisDiarios(
         widget.usuarioId,
       );
@@ -103,7 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final carbAtual = _totaisConsumidos['carboidratos'] ?? 0;
     final gordAtual = _totaisConsumidos['gorduras'] ?? 0;
 
-    // Recupera dados adicionais gerados pela IA (se salvos no plano ou em cache)
     final planoCache = AppCache.planoAtual;
     final resumoAnalise =
         planoCache?['resumo_analise'] ??
@@ -113,11 +111,17 @@ class _HomeScreenState extends State<HomeScreen> {
         planoCache?['treino_sugerido_nome'] ??
         _planoData?['treino_sugerido_nome'] ??
         'Treino do Dia: Calistenia';
+    final int totalTreinosConcluidos = _treinoConcluidoHoje ? 1 : 0;
+    final double progressoNivel = (totalTreinosConcluidos % 5) / 5.0;
+    final String patamarAtual = totalTreinosConcluidos >= 15
+        ? 'Patamar: Elite (Avançado)'
+        : totalTreinosConcluidos >= 10
+        ? 'Patamar: Intermediário'
+        : 'Patamar: Fundacional (Iniciante)';
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // --- CARD DE PARECER DA NUTRI & PERSONAL IA ---
         Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
@@ -156,7 +160,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 20),
 
-        // --- RESUMO DIÁRIO (METAS E MACROS) ---
         Container(
           padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
@@ -190,38 +193,132 @@ class _HomeScreenState extends State<HomeScreen> {
 
         const SizedBox(height: 24),
 
-        // --- CARD DE TREINO DO DIA (COM GUIA INTERATIVO) ---
-        InkWell(
-          onTap: () async {
-            // Se o usuário quiser ver os detalhes da IA ou executar o treino
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => DetalhesTreinoScreen(
-                  dadosPlano: AppCache.planoAtual ?? _planoData ?? {},
-                  usuarioId: widget.usuarioId, // Adicionado aqui
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.blueAccent.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.water_drop, color: Colors.blueAccent),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Dica do Dia: Mantenha-se hidratado! Beba cerca de 500ml de água a cada 2 horas de treino calistênico.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
                 ),
               ),
-            );
-          },
+            ],
+          ),
+        ),
+
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade900,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.amber.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.trending_up,
+                        color: Colors.amber,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        patamarAtual,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${(progressoNivel * 100).toInt()}%',
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: progressoNivel,
+                  minHeight: 8,
+                  backgroundColor: Colors.grey.shade800,
+                  color: Colors.amber,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Complete mais treinos para desbloquear variações avançadas e progressões de força.',
+                style: TextStyle(color: Colors.white60, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+
+        InkWell(
+          onTap: _treinoConcluidoHoje
+              ? null
+              : () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DetalhesTreinoScreen(
+                        dadosPlano: AppCache.planoAtual ?? _planoData ?? {},
+                        usuarioId: widget.usuarioId,
+                      ),
+                    ),
+                  );
+                  _carregarDashboard();
+                },
           borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.grey.shade900,
+              color: _treinoConcluidoHoje
+                  ? Colors.green.withOpacity(0.05)
+                  : Colors.grey.shade900,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.greenAccent.withOpacity(0.2)),
+              border: Border.all(
+                color: _treinoConcluidoHoje
+                    ? Colors.greenAccent.withOpacity(0.5)
+                    : Colors.greenAccent.withOpacity(0.2),
+              ),
             ),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.greenAccent.withOpacity(0.1),
+                    color: _treinoConcluidoHoje
+                        ? Colors.greenAccent.withOpacity(0.2)
+                        : Colors.greenAccent.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.fitness_center,
+                  child: Icon(
+                    _treinoConcluidoHoje
+                        ? Icons.check_circle
+                        : Icons.fitness_center,
                     color: Colors.greenAccent,
                   ),
                 ),
@@ -232,7 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Text(
                         _treinoConcluidoHoje
-                            ? 'Treino Concluído! 🏆'
+                            ? 'Treino Concluído Hoje! 🏆'
                             : nomeTreinoIA,
                         style: TextStyle(
                           fontSize: 16,
@@ -244,7 +341,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        _treinoConcluidoHoje ? 'Bom descanso. Até amanhã!' : 'Toque para ver o guia de exercícios e instruções',
+                        _treinoConcluidoHoje
+                            ? 'Meta diária batida. Bom descanso!'
+                            : 'Toque para ver o guia de exercícios e instruções',
                         style: const TextStyle(
                           color: Colors.grey,
                           fontSize: 13,
@@ -253,7 +352,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: Colors.grey),
+                if (!_treinoConcluidoHoje)
+                  const Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
           ),
@@ -270,7 +370,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final nome = _usuarioData?['nome'] ?? 'Atleta';
 
-    // Título dinâmico da AppBar
     String tituloAppBar = 'Bora treinar, $nome!';
     if (_abaAtual == 1) tituloAppBar = 'Dieta';
     if (_abaAtual == 2) tituloAppBar = 'Histórico';
