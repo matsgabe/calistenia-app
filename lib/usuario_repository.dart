@@ -28,16 +28,21 @@ class UsuarioRepository {
   // Verifica se o treino já foi concluído hoje
   Future<bool> verificarTreinoConcluidoHoje(int usuarioId) async {
     try {
-      final hoje = DateTime.now().toIso8601String().split('T')[0];
+      final hoje = DateTime.now();
       final response = await _supabase
           .from('historico_fisico')
           .select()
           .eq('usuario_id', usuarioId);
 
       for (var item in response) {
-        final createdAt = item['created_at']?.toString();
-        if (createdAt != null && createdAt.startsWith(hoje)) {
-          return true;
+        final dataRegistro = item['data_registro'] ?? item['created_at'];
+        if (dataRegistro != null) {
+          final dataTreino = DateTime.parse(dataRegistro.toString());
+          if (dataTreino.year == hoje.year &&
+              dataTreino.month == hoje.month &&
+              dataTreino.day == hoje.day) {
+            return true; // Encontrou um treino concluído hoje!
+          }
         }
       }
       return false;
@@ -56,7 +61,7 @@ class UsuarioRepository {
       'data_registro': hoje,
       'peso_kg': 70.0,
       'objetivo': 'Hipertrofia',
-      'nivel_atividade': 'Moderado'
+      'nivel_atividade': 'Moderado',
     });
   }
 
