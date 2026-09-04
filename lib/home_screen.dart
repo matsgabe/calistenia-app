@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'login_screen.dart';
 import 'app_cache.dart';
 import 'dieta_screen.dart';
-import 'treino_screen.dart';
 import 'usuario_repository.dart';
 import 'historico_screen.dart';
 import 'dieta_repository.dart';
@@ -25,10 +24,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final _repository = UsuarioRepository();
   Map<String, dynamic>? _usuarioData;
-  Map<String, dynamic>? _planoData;
   bool _isLoading = true;
   bool _treinoConcluidoHoje = false;
-  int _totalTreinosConcluidos = 0; // Adicionado para calcular o progresso real
+  int _totalTreinosConcluidos = 0;
 
   final _dietaRepository = DietaRepository();
   Map<String, int> _totaisConsumidos = {
@@ -47,33 +45,25 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _carregarDashboard() async {
     try {
       final user = await _repository.buscarUsuario(widget.usuarioId);
-      final plano = await _repository.buscarPlanoAtivo(widget.usuarioId);
       final totaisDieta = await _dietaRepository.buscarTotaisDiarios(
         widget.usuarioId,
       );
 
-      // 1. Total de treinos já realizados na vida (para a barra de progresso)
+      // Usa a função CORRIGIDA do repositório para ver se treinou hoje
+      final treinoHoje = await _repository.verificarTreinoConcluidoHoje(
+        widget.usuarioId,
+      );
+
+      // Pega o total absoluto de treinos para a barra de nível
       final treinosRealizados = await Supabase.instance.client
           .from('treinos_realizados')
           .select('id')
           .eq('usuario_id', widget.usuarioId);
 
-      // 2. Verifica se algum treino foi realizado especificamente HOJE
-      final hoje = DateTime.now().toIso8601String().split('T')[0];
-      final treinosHoje = await Supabase.instance.client
-          .from('treinos_realizados')
-          .select('id')
-          .eq('usuario_id', widget.usuarioId)
-          .gte(
-            'data_realizacao',
-            '$hoje 00:00:00',
-          ); // Pega treinos de hoje em diante
-
       if (mounted) {
         setState(() {
           _usuarioData = user;
-          _planoData = plano;
-          _treinoConcluidoHoje = treinosHoje.isNotEmpty;
+          _treinoConcluidoHoje = treinoHoje;
           _totaisConsumidos = totaisDieta;
           _totalTreinosConcluidos = treinosRealizados.length;
           _isLoading = false;
@@ -90,11 +80,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _deslogar() async {
-    // Desloga do Supabase
     await Supabase.instance.client.auth.signOut();
-
     if (mounted) {
-      // Navega de volta para a tela de Login e limpa o histórico de navegação
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -128,34 +115,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAbaHome() {
-    final bool temPlano = _planoData != null && _planoData!.isNotEmpty;
+    final planoCache = AppCache.planoAtual;
+    final bool temPlano = planoCache != null && planoCache.isNotEmpty;
 
-    final caloriasAlvo = _planoData?['calorias_alvo'] ?? 0;
-    final protAlvo = _planoData?['proteinas_g_alvo'] ?? 0;
-    final carbAlvo = _planoData?['carboidratos_g_alvo'] ?? 0;
-    final gordAlvo = _planoData?['gorduras_g_alvo'] ?? 0;
+    // Busca metas do Cache (Anamnese)
+    final caloriasAlvo = planoCache?['calorias_alvo'] ?? 2000;
+    final protAlvo = planoCache?['proteinas_g_alvo'] ?? 150;
+    final carbAlvo = planoCache?['carboidratos_g_alvo'] ?? 200;
+    final gordAlvo = planoCache?['gorduras_g_alvo'] ?? 60;
 
+    // Busca Consumo Diário real do banco (DietaRepository)
     final kcalAtual = _totaisConsumidos['calorias'] ?? 0;
     final protAtual = _totaisConsumidos['proteinas'] ?? 0;
     final carbAtual = _totaisConsumidos['carboidratos'] ?? 0;
     final gordAtual = _totaisConsumidos['gorduras'] ?? 0;
 
-    final planoCache = AppCache.planoAtual;
-
-    // Tratamento para usuários novos não puxarem o cache indevidamente
     final resumoAnalise = temPlano
-        ? (_planoData?['resumo_analise'] ??
-              planoCache?['resumo_analise'] ??
-              'Seu plano inteligente está ativo e estruturado sob medida.')
-        : 'Plano pendente. A IA gerará seu plano no seu primeiro treino/refeição.';
+        ? planoCache['resumo_analise']
+        : 'Plano pendente. Vá em "Seu Histórico" para configurar o perfil ou refaça o Anamnese.';
 
     final nomeTreinoIA = temPlano
-        ? (_planoData?['treino_sugerido_nome'] ??
-              planoCache?['treino_sugerido_nome'] ??
-              'Treino do Dia: Calistenia')
-        : 'Pronto para começar?';
+        ? planoCache['treino_sugerido_nome']
+        : 'Treino de Calistenia (Padrão)';
 
-    // Progresso 100% Real baseado no Banco de Dados
     final double progressoNivel = _totalTreinosConcluidos == 0
         ? 0.0
         : (_totalTreinosConcluidos % 5) / 5.0;
@@ -245,33 +227,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 20),
 
-        // --- DICA DO DIA ---
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.blueAccent.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.blueAccent.withOpacity(0.2)),
-          ),
-          child: const Row(
-            children: [
-              Icon(Icons.water_drop, color: Colors.blueAccent, size: 24),
-              SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Dica do Dia: Mantenha-se hidratado! Beba cerca de 500ml de água a cada 2 horas de treino calistênico.',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-
         // --- BARRA DE PROGRESSÃO ---
         Container(
           padding: const EdgeInsets.all(20),
@@ -320,17 +275,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: Colors.amber,
                 ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Complete mais treinos para desbloquear variações avançadas e progressões de força.',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-              ),
             ],
           ),
         ),
         const SizedBox(height: 20),
 
-        // --- CARD DE TREINO DO DIA (MODERNIZADO) ---
+        // --- CARD DE TREINO DO DIA ---
         Container(
           decoration: BoxDecoration(
             color: _treinoConcluidoHoje
@@ -348,18 +298,18 @@ class _HomeScreenState extends State<HomeScreen> {
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
               onTap: _treinoConcluidoHoje
-                  ? null
+                  ? null // Se já concluiu, trava o botão!
                   : () async {
                       await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => DetalhesTreinoScreen(
-                            dadosPlano: AppCache.planoAtual ?? _planoData ?? {},
+                            dadosPlano: planoCache ?? {},
                             usuarioId: widget.usuarioId,
                           ),
                         ),
                       );
-                      _carregarDashboard();
+                      _carregarDashboard(); // Atualiza a Home ao voltar da tela de treino!
                     },
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
@@ -401,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Text(
                             _treinoConcluidoHoje
                                 ? 'Meta diária batida. Bom descanso!'
-                                : 'Toque para ver o guia de exercícios e instruções',
+                                : 'Toque para ver o guia de exercícios',
                             style: TextStyle(
                               color: Colors.grey.shade400,
                               fontSize: 13,
@@ -412,73 +362,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     if (!_treinoConcluidoHoje)
                       const Icon(Icons.chevron_right, color: Colors.grey),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // --- CARD DE GALERIA DE CONQUISTAS (MODERNIZADO) ---
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.amber.withOpacity(0.2)),
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        ConquistasScreen(usuarioId: widget.usuarioId),
-                  ),
-                );
-              },
-              child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.emoji_events,
-                        color: Colors.amber,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Galeria de Conquistas',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Toque para ver suas insígnias e marcos',
-                            style: TextStyle(
-                              color: Colors.grey.shade400,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.chevron_right, color: Colors.grey),
                   ],
                 ),
               ),
@@ -523,7 +406,6 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.exit_to_app, color: Colors.redAccent),
             onPressed: () => _deslogar(),
-            tooltip: 'Sair da conta',
           ),
         ],
       ),
@@ -532,7 +414,6 @@ class _HomeScreenState extends State<HomeScreen> {
           : (_abaAtual == 2
                 ? HistoricoScreen(usuarioId: widget.usuarioId)
                 : DietaScreen(usuarioId: widget.usuarioId)),
-
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: Colors.white10, width: 1)),
@@ -559,9 +440,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
           onTap: (index) {
-            setState(() {
-              _abaAtual = index;
-            });
+            setState(() => _abaAtual = index);
+            if (index == 0 || index == 1) {
+              _carregarDashboard(); // Sincroniza sempre que navegar
+            }
           },
         ),
       ),

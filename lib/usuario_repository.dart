@@ -25,47 +25,35 @@ class UsuarioRepository {
     return response;
   }
 
-  // Verifica se o treino já foi concluído hoje
+  // VERIFICA TREINO: Agora aponta para a tabela correta 'treinos_realizados'
   Future<bool> verificarTreinoConcluidoHoje(int usuarioId) async {
     try {
-      final hoje = DateTime.now();
+      final hoje = DateTime.now().toIso8601String().split('T')[0];
       final response = await _supabase
-          .from('historico_fisico')
-          .select()
-          .eq('usuario_id', usuarioId);
+          .from('treinos_realizados')
+          .select('id')
+          .eq('usuario_id', usuarioId)
+          .gte('data_realizacao', '$hoje 00:00:00');
 
-      for (var item in response) {
-        final dataRegistro = item['data_registro'] ?? item['created_at'];
-        if (dataRegistro != null) {
-          final dataTreino = DateTime.parse(dataRegistro.toString());
-          if (dataTreino.year == hoje.year &&
-              dataTreino.month == hoje.month &&
-              dataTreino.day == hoje.day) {
-            return true; // Encontrou um treino concluído hoje!
-          }
-        }
-      }
-      return false;
+      return response.isNotEmpty;
     } catch (e) {
       debugPrint('Erro ao verificar treino hoje: $e');
       return false;
     }
   }
 
-  // Registra a conclusão do treino de calistenia do dia usando o timestamp automático
+  // REGISTRA TREINO: Agora aponta para a tabela 'treinos_realizados' ao invés de historico_fisico
   Future<void> registrarTreinoConcluido(int usuarioId) async {
-    final hoje = DateTime.now().toIso8601String().split('T')[0];
+    final agora = DateTime.now().toIso8601String();
 
-    await _supabase.from('historico_fisico').insert({
+    await _supabase.from('treinos_realizados').insert({
       'usuario_id': usuarioId,
-      'data_registro': hoje,
-      'peso_kg': 70.0,
-      'objetivo': 'Hipertrofia',
-      'nivel_atividade': 'Moderado',
+      'tipo_treino': 'Calistenia IA',
+      'duracao_segundos': 1800, // 30 minutos padrão
+      'data_realizacao': agora,
     });
   }
 
-  // Busca o histórico recente de treinos do usuário para análise da IA
   Future<List<Map<String, dynamic>>> buscarHistoricoRecente(
     int usuarioId,
   ) async {
@@ -82,7 +70,6 @@ class UsuarioRepository {
     }
   }
 
-  // Realiza o login do usuário
   Future<Map<String, dynamic>?> fazerLogin(
     String username,
     String senha,
@@ -96,7 +83,6 @@ class UsuarioRepository {
     return response;
   }
 
-  // Verifica se o username já existe no cadastro
   Future<bool> verificarUsernameExiste(String username) async {
     final response = await _supabase
         .from('usuarios')
@@ -120,19 +106,13 @@ class UsuarioRepository {
       'senha': senha,
     };
 
-    if (genero != null) {
-      dadosInsercao['genero'] = genero;
-    }
-
+    if (genero != null) dadosInsercao['genero'] = genero;
     if (dataNascimento != null) {
       dadosInsercao['data_nascimento'] = dataNascimento.toIso8601String().split(
         'T',
       )[0];
     }
-
-    if (alturaCm != null) {
-      dadosInsercao['altura_cm'] = alturaCm;
-    }
+    if (alturaCm != null) dadosInsercao['altura_cm'] = alturaCm;
 
     final response = await _supabase
         .from('usuarios')
@@ -143,23 +123,19 @@ class UsuarioRepository {
     return response['id'] as int;
   }
 
-  // Salva as métricas físicas do usuário
   Future<void> registrarMetricas({
     required int usuarioId,
     required double peso,
     required double altura,
   }) async {
     final hoje = DateTime.now().toIso8601String().split('T')[0];
-
     await _supabase.from('historico_fisico').insert({
       'usuario_id': usuarioId,
-      'peso': peso,
-      'altura': altura,
-      'data_registro': hoje, // Garante que a data seja preenchida aqui também
+      'peso_kg': peso,
+      'data_registro': hoje,
     });
   }
 
-  // Grava o plano alimentar inicial/atualizado
   Future<void> gravarPlanoAlimentar({
     required int usuarioId,
     required int calorias,
@@ -167,13 +143,11 @@ class UsuarioRepository {
     required int carboidratos,
     required int gorduras,
   }) async {
-    // Desativa planos anteriores
     await _supabase
         .from('plano_alimentar')
         .update({'ativo': false})
         .eq('usuario_id', usuarioId);
 
-    // Insere o novo plano ativo
     await _supabase.from('plano_alimentar').insert({
       'usuario_id': usuarioId,
       'calorias_alvo': calorias,

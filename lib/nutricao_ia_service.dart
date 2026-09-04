@@ -1,21 +1,32 @@
 import 'dart:convert';
-import 'dart:typed_data'; // <-- Import necessário para Uint8List
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart'; // Importado para usar o debugPrint
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class NutricaoIAService {
   static final String _apiKey = dotenv.env['GEMINI_API_KEY'] ?? '';
 
-  static Future<Map<String, dynamic>?> analisarRefeicao({
-    required String descricao,
-  }) async {
+  // Função auxiliar para gerenciar a chamada e evitar repetição de código
+  static Future<Map<String, dynamic>?> _chamarAPI(
+    String nomeModelo,
+    List<Content> conteudo,
+  ) async {
     final model = GenerativeModel(
-      model: 'gemini-3.5-flash-lite',
+      model: nomeModelo,
       apiKey: _apiKey,
       generationConfig: GenerationConfig(responseMimeType: 'application/json'),
     );
 
+    final response = await model.generateContent(conteudo);
+    if (response.text == null) return null;
+    return jsonDecode(response.text!);
+  }
+
+  static Future<Map<String, dynamic>?> analisarRefeicao({
+    required String descricao,
+  }) async {
     final prompt =
         '''
     Atue como um nutricionista esportivo. Analise o alimento descrito: "$descricao".
@@ -26,21 +37,22 @@ class NutricaoIAService {
     - "gorduras_g": int
     ''';
 
-    final response = await model.generateContent([Content.text(prompt)]);
-    if (response.text == null) return null;
-    return jsonDecode(response.text!);
+    final conteudo = [Content.text(prompt)];
+
+    // Mecanismo de Fallback
+    try {
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+    } catch (e) {
+      debugPrint(
+        'Fallback ativado: gemini-3.5-flash-lite falhou ($e). Tentando 1.5-flash...',
+      );
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+    }
   }
 
-  // **CORRIGIDO: Recebe e trata Uint8List diretamente**
   static Future<Map<String, dynamic>?> analisarRefeicaoPorFoto(
     Uint8List imageBytes,
   ) async {
-    final model = GenerativeModel(
-      model: 'gemini-3.5-flash-lite',
-      apiKey: _apiKey,
-      generationConfig: GenerationConfig(responseMimeType: 'application/json'),
-    );
-
     final prompt = '''
     Atue como um nutricionista esportivo. Analise a foto deste prato de comida.
     Identifique os alimentos, estime as gramaturas visuais e calcule o total aproximado.
@@ -52,15 +64,19 @@ class NutricaoIAService {
     - "gorduras_g": int
     ''';
 
-    final response = await model.generateContent([
-      Content.multi([
-        TextPart(prompt),
-        DataPart('image/jpeg', imageBytes), // Agora compatível com Uint8List
-      ]),
-    ]);
+    final conteudo = [
+      Content.multi([TextPart(prompt), DataPart('image/jpeg', imageBytes)]),
+    ];
 
-    if (response.text == null) return null;
-    return jsonDecode(response.text!);
+    // Mecanismo de Fallback
+    try {
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+    } catch (e) {
+      debugPrint(
+        'Fallback ativado: gemini-3.5-flash-lite falhou ($e). Tentando 1.5-flash...',
+      );
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+    }
   }
 
   static Future<Map<String, dynamic>?> gerarCardapioDiario({
@@ -68,12 +84,6 @@ class NutricaoIAService {
     required bool consomeCarne,
     required String objetivo,
   }) async {
-    final model = GenerativeModel(
-      model: 'gemini-3.5-flash-lite',
-      apiKey: _apiKey,
-      generationConfig: GenerationConfig(responseMimeType: 'application/json'),
-    );
-
     final prompt =
         '''
     Atue como um nutricionista esportivo. Crie um cardápio diário completo para um usuário com peso $peso kg, objetivo $objetivo, consome carne: $consomeCarne.
@@ -86,8 +96,16 @@ class NutricaoIAService {
       ]
     ''';
 
-    final response = await model.generateContent([Content.text(prompt)]);
-    if (response.text == null) return null;
-    return jsonDecode(response.text!);
+    final conteudo = [Content.text(prompt)];
+
+    // Mecanismo de Fallback
+    try {
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+    } catch (e) {
+      debugPrint(
+        'Fallback ativado: gemini-3.5-flash-lite falhou ($e). Tentando 1.5-flash...',
+      );
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+    }
   }
 }

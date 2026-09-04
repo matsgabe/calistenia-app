@@ -7,27 +7,29 @@ class DietaRepository {
   Future<Map<String, int>> buscarTotaisDiarios(int usuarioId) async {
     final hoje = DateTime.now().toIso8601String().split('T')[0];
 
-    // Busca todo o histórico e filtra no app para evitar erro de fuso horário/timestamp
     final response = await _supabase
         .from('consumo_alimentar')
-        .select()
-        .eq('usuario_id', usuarioId);
+        .select('calorias, proteinas_g, carboidratos_g, gorduras_g')
+        .eq('usuario_id', usuarioId)
+        .gte('data_registro', '$hoje 00:00:00');
 
-    int kcal = 0, prot = 0, carb = 0, gord = 0;
+    int totalKcal = 0;
+    int totalProt = 0;
+    int totalCarb = 0;
+    int totalGord = 0;
+
     for (var item in response) {
-      final dataRegistro = item['data_registro']?.toString() ?? '';
-      if (dataRegistro.startsWith(hoje)) {
-        kcal += (item['calorias'] as num?)?.toInt() ?? 0;
-        prot += (item['proteinas_g'] as num?)?.toInt() ?? 0;
-        carb += (item['carboidratos_g'] as num?)?.toInt() ?? 0;
-        gord += (item['gorduras_g'] as num?)?.toInt() ?? 0;
-      }
+      totalKcal += (item['calorias'] ?? 0) as int;
+      totalProt += (item['proteinas_g'] ?? 0) as int;
+      totalCarb += (item['carboidratos_g'] ?? 0) as int;
+      totalGord += (item['gorduras_g'] ?? 0) as int;
     }
+
     return {
-      'calorias': kcal,
-      'proteinas': prot,
-      'carboidratos': carb,
-      'gorduras': gord,
+      'calorias': totalKcal,
+      'proteinas': totalProt,
+      'carboidratos': totalCarb,
+      'gorduras': totalGord,
     };
   }
 

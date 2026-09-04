@@ -64,10 +64,12 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
           .eq('id', widget.usuarioId);
 
       String objetivoBanco = 'Hipertrofia';
-      if (_objetivoSelecionado!.contains('Emagrecer'))
+      if (_objetivoSelecionado!.contains('Emagrecer')) {
         objetivoBanco = 'Perder Peso';
-      if (_objetivoSelecionado!.contains('Manter'))
+      }
+      if (_objetivoSelecionado!.contains('Manter')) {
         objetivoBanco = 'Manutencao';
+      }
 
       String nivelBanco = 'Leve';
       if (_nivelSelecionado!.contains('Intermediário')) nivelBanco = 'Moderado';
@@ -93,12 +95,42 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
         objetivo: _objetivoSelecionado!,
       );
 
+      // ==========================================
+      // 3. MONTAGEM DO CACHE COM TREINO INCLUÍDO
+      // ==========================================
+
+      // Gera uma lista de exercícios baseada no nível escolhido
+      List<Map<String, dynamic>> exerciciosSugeridos = [];
+      if (_nivelSelecionado!.contains('Iniciante')) {
+        exerciciosSugeridos = [
+          {'nome': 'Flexão com Joelhos', 'series': 3, 'reps': '10 a 12'},
+          {'nome': 'Agachamento Livre', 'series': 3, 'reps': '15'},
+          {'nome': 'Prancha Alta', 'series': 3, 'reps': '30 seg'},
+        ];
+      } else if (_nivelSelecionado!.contains('Intermediário')) {
+        exerciciosSugeridos = [
+          {'nome': 'Flexão Padrão', 'series': 4, 'reps': '12 a 15'},
+          {'nome': 'Agachamento com Salto', 'series': 4, 'reps': '15'},
+          {'nome': 'Barra Fixa (Pull-up)', 'series': 3, 'reps': '6 a 8'},
+          {'nome': 'Prancha Abdominal', 'series': 4, 'reps': '45 seg'},
+        ];
+      } else {
+        exerciciosSugeridos = [
+          {'nome': 'Muscle Up', 'series': 3, 'reps': '5'},
+          {'nome': 'Flexão Diamante', 'series': 4, 'reps': '15 a 20'},
+          {'nome': 'Pistol Squat', 'series': 4, 'reps': '8 cada perna'},
+          {'nome': 'Front Lever (Tentativa)', 'series': 4, 'reps': '10 seg'},
+        ];
+      }
+
       // Salva no AppCache para a Home e a tela de Dieta conseguirem ler imediatamente
       AppCache.planoAtual = {
         'resumo_analise':
             'Plano inteligente gerado! Foco em $_objetivoSelecionado.',
         'treino_sugerido_nome': 'Treino de Calistenia ($nivelBanco)',
         'cardapio': planoIA?['sugestoes'] ?? [],
+        'exercicios':
+            exerciciosSugeridos, // <-- LISTA DE EXERCÍCIOS ADICIONADA AQUI!
         // Calculos base para não zerar os macros na Home inicial:
         'calorias_alvo': (pesoAtual * 25).toInt(),
         'proteinas_g_alvo': (pesoAtual * 2).toInt(),
