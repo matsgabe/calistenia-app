@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'dieta_repository.dart';
+import 'nutricao_ia_service.dart';
 
 class DietaScreen extends StatefulWidget {
   final int usuarioId;
@@ -41,65 +42,71 @@ class _DietaScreenState extends State<DietaScreen> {
     }
   }
 
-  // Fluxo de captura de foto e Análise da IA
+  void _mostrarLoadingIA(String mensagem) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: Colors.greenAccent),
+            const SizedBox(height: 16),
+            Text(mensagem, style: const TextStyle(color: Colors.white)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- FLUXO REAL DA IA VISION (CÂMERA) ---
   Future<void> _capturarEAnalisarFoto() async {
     try {
+      // Abre a câmera (ou galeria dependendo do dispositivo/web)
       final XFile? foto = await _picker.pickImage(source: ImageSource.camera);
 
       if (foto == null) return;
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const AlertDialog(
-            backgroundColor: Color(0xFF1E1E1E),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircularProgressIndicator(color: Colors.greenAccent),
-                SizedBox(height: 16),
-                Text(
-                  'Vision IA analisando prato...',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+      if (mounted) _mostrarLoadingIA('Vision IA analisando prato...');
 
-      await Future.delayed(const Duration(seconds: 3));
+      // Transforma a foto em bytes para a IA conseguir ler
+      final bytes = await foto.readAsBytes();
 
-      // Retorno simulado da IA ajustado para a foto real (Arroz, Feijão, Ovo, Salada)
-      final String descricaoIA = "Arroz, Feijão, Ovo Frito, Cenoura e Salada";
-      final int kcalIA = 450;
-      final int protIA = 18;
-      final int carbIA = 55;
-      final int gordIA = 15;
-
-      await _dietaRepository.registrarRefeicao(
-        usuarioId: widget.usuarioId,
-        descricao: descricaoIA,
-        calorias: kcalIA,
-        proteinas: protIA,
-        carboidratos: carbIA,
-        gorduras: gordIA,
+      // CHAMA O GEMINI VISION DE VERDADE!
+      final resultadoIA = await NutricaoIAService.analisarRefeicaoPorFoto(
+        bytes,
       );
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Refeição identificada e salva com sucesso! 🥗'),
-            backgroundColor: Colors.green,
-          ),
+      if (mounted) Navigator.pop(context); // Fecha o loading
+
+      if (resultadoIA != null) {
+        await _dietaRepository.registrarRefeicao(
+          usuarioId: widget.usuarioId,
+          descricao:
+              resultadoIA['nome_detectado'] ?? 'Refeição identificada pela IA',
+          calorias: resultadoIA['calorias'] ?? 0,
+          proteinas: resultadoIA['proteinas_g'] ?? 0,
+          carboidratos: resultadoIA['carboidratos_g'] ?? 0,
+          gorduras: resultadoIA['gorduras_g'] ?? 0,
         );
-        _carregarRefeicoes();
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Refeição analisada e salva com sucesso! 🥗'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          _carregarRefeicoes();
+        }
+      } else {
+        throw Exception("A IA não conseguiu identificar os alimentos.");
       }
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context);
+        if (Navigator.canPop(context))
+          Navigator.pop(context); // Garante fechar loading em caso de erro
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Erro ao analisar prato: $e')));
@@ -107,22 +114,46 @@ class _DietaScreenState extends State<DietaScreen> {
     }
   }
 
-  // Registro manual via texto
+  // --- FLUXO REAL DA IA POR TEXTO ---
   Future<void> _registrarManual() async {
-    if (_textoController.text.trim().isEmpty) return;
+    final descricaoDigitada = _textoController.text.trim();
+    if (descricaoDigitada.isEmpty) return;
 
-    await _dietaRepository.registrarRefeicao(
-      usuarioId: widget.usuarioId,
-      descricao: _textoController.text.trim(),
-      calorias: 300,
-      proteinas: 15,
-      carboidratos: 30,
-      gorduras: 10,
-    );
+    FocusScope.of(context).unfocus(); // Esconde o teclado
 
-    _textoController.clear();
-    FocusScope.of(context).unfocus();
-    _carregarRefeicoes();
+    if (mounted) _mostrarLoadingIA('IA calculando macronutrientes...');
+
+    try {
+      // CHAMA O GEMINI TEXT DE VERDADE!
+      final resultadoIA = await NutricaoIAService.analisarRefeicao(
+        descricao: descricaoDigitada,
+      );
+
+      if (mounted) Navigator.pop(context); // Fecha o loading
+
+      if (resultadoIA != null) {
+        await _dietaRepository.registrarRefeicao(
+          usuarioId: widget.usuarioId,
+          descricao: descricaoDigitada, // Usa o nome que o usuário digitou
+          calorias: resultadoIA['calorias'] ?? 0,
+          proteinas: resultadoIA['proteinas_g'] ?? 0,
+          carboidratos: resultadoIA['carboidratos_g'] ?? 0,
+          gorduras: resultadoIA['gorduras_g'] ?? 0,
+        );
+
+        _textoController.clear();
+        _carregarRefeicoes();
+      } else {
+        throw Exception("Falha ao calcular os nutrientes.");
+      }
+    } catch (e) {
+      if (mounted) {
+        if (Navigator.canPop(context)) Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao calcular alimento: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -171,59 +202,6 @@ class _DietaScreenState extends State<DietaScreen> {
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 24),
-
-        // --- CARDÁPIO SUGERIDO (4 REFEIÇÕES) ---
-        const Text(
-          'Cardápio Sugerido para Hoje',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        Column(
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _buildCardRefeicao(
-                    'Café da Manhã',
-                    'Ovos mexidos, pão integral e banana',
-                    '450 kcal',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildCardRefeicao(
-                    'Almoço',
-                    'Carne bovina magra, arroz, feijão e azeite',
-                    '750 kcal',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _buildCardRefeicao(
-                    'Café da Tarde',
-                    'Iogurte natural com whey protein e aveia',
-                    '300 kcal',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildCardRefeicao(
-                    'Jantar',
-                    'Frango desfiado, batata-doce e brócolis',
-                    '500 kcal',
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
         const SizedBox(height: 24),
 
@@ -345,47 +323,6 @@ class _DietaScreenState extends State<DietaScreen> {
                 },
               ),
       ],
-    );
-  }
-
-  Widget _buildCardRefeicao(String titulo, String desc, String kcal) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade900,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade800),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            titulo,
-            style: const TextStyle(
-              color: Colors.greenAccent,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            desc,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 12,
-              height: 1.3,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            kcal,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
