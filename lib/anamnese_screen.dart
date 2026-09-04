@@ -14,7 +14,6 @@ class AnamneseScreen extends StatefulWidget {
 }
 
 class _AnamneseScreenState extends State<AnamneseScreen> {
-  // 1. Variáveis agora começam vazias
   final _pesoController = TextEditingController();
   final _alturaController = TextEditingController();
   final _idadeController = TextEditingController();
@@ -23,7 +22,7 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
   String? _objetivoSelecionado;
   String? _nivelSelecionado;
 
-  bool _consomeCarne = false; // Começa desativado
+  bool _consomeCarne = false;
   bool _dorLombar = false;
   bool _dorOmbros = false;
 
@@ -85,53 +84,52 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
       });
 
       // ==========================================
-      // 2. CHAMA A INTELIGÊNCIA ARTIFICIAL (GEMINI)
+      // 2. CHAMA A INTELIGÊNCIA ARTIFICIAL COMPLETA (DIETA + TREINO)
       // ==========================================
       final double pesoAtual = double.tryParse(_pesoController.text) ?? 75.0;
 
-      final planoIA = await NutricaoIAService.gerarCardapioDiario(
+      final planoIA = await NutricaoIAService.gerarPlanoCompleto(
         peso: pesoAtual,
         consomeCarne: _consomeCarne,
         objetivo: _objetivoSelecionado!,
+        nivel: _nivelSelecionado!,
+        lesaoLombar: _dorLombar,
+        lesaoOmbro: _dorOmbros,
       );
 
       // ==========================================
-      // 3. MONTAGEM DO CACHE COM TREINO INCLUÍDO
+      // 3. MONTAGEM DO CACHE COM RETORNO DA IA
       // ==========================================
-
-      // Gera uma lista de exercícios baseada no nível escolhido
-      List<Map<String, dynamic>> exerciciosSugeridos = [];
-      if (_nivelSelecionado!.contains('Iniciante')) {
-        exerciciosSugeridos = [
-          {'nome': 'Flexão com Joelhos', 'series': 3, 'reps': '10 a 12'},
-          {'nome': 'Agachamento Livre', 'series': 3, 'reps': '15'},
-          {'nome': 'Prancha Alta', 'series': 3, 'reps': '30 seg'},
-        ];
-      } else if (_nivelSelecionado!.contains('Intermediário')) {
-        exerciciosSugeridos = [
-          {'nome': 'Flexão Padrão', 'series': 4, 'reps': '12 a 15'},
-          {'nome': 'Agachamento com Salto', 'series': 4, 'reps': '15'},
-          {'nome': 'Barra Fixa (Pull-up)', 'series': 3, 'reps': '6 a 8'},
-          {'nome': 'Prancha Abdominal', 'series': 4, 'reps': '45 seg'},
-        ];
-      } else {
-        exerciciosSugeridos = [
-          {'nome': 'Muscle Up', 'series': 3, 'reps': '5'},
-          {'nome': 'Flexão Diamante', 'series': 4, 'reps': '15 a 20'},
-          {'nome': 'Pistol Squat', 'series': 4, 'reps': '8 cada perna'},
-          {'nome': 'Front Lever (Tentativa)', 'series': 4, 'reps': '10 seg'},
-        ];
-      }
-
-      // Salva no AppCache para a Home e a tela de Dieta conseguirem ler imediatamente
       AppCache.planoAtual = {
         'resumo_analise':
+            planoIA?['resumo_analise'] ??
             'Plano inteligente gerado! Foco em $_objetivoSelecionado.',
-        'treino_sugerido_nome': 'Treino de Calistenia ($nivelBanco)',
+        'treino_sugerido_nome':
+            planoIA?['treino_sugerido_nome'] ??
+            'Treino de Calistenia ($nivelBanco)',
         'cardapio': planoIA?['sugestoes'] ?? [],
         'exercicios':
-            exerciciosSugeridos, // <-- LISTA DE EXERCÍCIOS ADICIONADA AQUI!
-        // Calculos base para não zerar os macros na Home inicial:
+            planoIA?['exercicios'] ??
+            [
+              {
+                'nome': 'Flexão com Joelhos',
+                'series': 3,
+                'repeticoes': '10',
+                'instrucoes': 'Mantenha a postura e contração abdominal.',
+              },
+              {
+                'nome': 'Agachamento Livre',
+                'series': 3,
+                'repeticoes': '15',
+                'instrucoes': 'Mantenha a coluna reta e os joelhos alinhados com a ponta dos pés.',
+              },
+              {
+                'nome': 'Prancha Alta',
+                'series': 3,
+                'repeticoes': '30s',
+                'instrucoes': 'Mantenha a postura reta.',
+              },
+            ],
         'calorias_alvo': (pesoAtual * 25).toInt(),
         'proteinas_g_alvo': (pesoAtual * 2).toInt(),
         'carboidratos_g_alvo': (pesoAtual * 3).toInt(),
