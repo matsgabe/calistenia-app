@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'login_screen.dart';
 import 'app_cache.dart';
 import 'dieta_screen.dart';
@@ -8,6 +9,7 @@ import 'historico_screen.dart';
 import 'dieta_repository.dart';
 import 'detalhes_treino_screen.dart';
 import 'conquistas_screen.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -26,6 +28,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _planoData;
   bool _isLoading = true;
   bool _treinoConcluidoHoje = false;
+  int _totalTreinosConcluidos = 0; // Adicionado para calcular o progresso real
+
   final _dietaRepository = DietaRepository();
   Map<String, int> _totaisConsumidos = {
     'calorias': 0,
@@ -44,19 +48,34 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final user = await _repository.buscarUsuario(widget.usuarioId);
       final plano = await _repository.buscarPlanoAtivo(widget.usuarioId);
-      final treinoHoje = await _repository.verificarTreinoConcluidoHoje(
-        widget.usuarioId,
-      );
       final totaisDieta = await _dietaRepository.buscarTotaisDiarios(
         widget.usuarioId,
       );
+
+      // 1. Total de treinos já realizados na vida (para a barra de progresso)
+      final treinosRealizados = await Supabase.instance.client
+          .from('treinos_realizados')
+          .select('id')
+          .eq('usuario_id', widget.usuarioId);
+
+      // 2. Verifica se algum treino foi realizado especificamente HOJE
+      final hoje = DateTime.now().toIso8601String().split('T')[0];
+      final treinosHoje = await Supabase.instance.client
+          .from('treinos_realizados')
+          .select('id')
+          .eq('usuario_id', widget.usuarioId)
+          .gte(
+            'data_realizacao',
+            '$hoje 00:00:00',
+          ); // Pega treinos de hoje em diante
 
       if (mounted) {
         setState(() {
           _usuarioData = user;
           _planoData = plano;
-          _treinoConcluidoHoje = treinoHoje;
+          _treinoConcluidoHoje = treinosHoje.isNotEmpty;
           _totaisConsumidos = totaisDieta;
+          _totalTreinosConcluidos = treinosRealizados.length;
           _isLoading = false;
         });
       }
@@ -109,6 +128,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildAbaHome() {
+    final bool temPlano = _planoData != null && _planoData!.isNotEmpty;
+
     final caloriasAlvo = _planoData?['calorias_alvo'] ?? 0;
     final protAlvo = _planoData?['proteinas_g_alvo'] ?? 0;
     final carbAlvo = _planoData?['carboidratos_g_alvo'] ?? 0;
@@ -120,27 +141,33 @@ class _HomeScreenState extends State<HomeScreen> {
     final gordAtual = _totaisConsumidos['gorduras'] ?? 0;
 
     final planoCache = AppCache.planoAtual;
-    final resumoAnalise =
-        planoCache?['resumo_analise'] ??
-        _planoData?['resumo_analise'] ??
-        'Seu plano inteligente está ativo e estruturado sob medida.';
-    final nomeTreinoIA =
-        planoCache?['treino_sugerido_nome'] ??
-        _planoData?['treino_sugerido_nome'] ??
-        'Treino do Dia: Calistenia';
 
-    // Simulação do nível baseado na conclusão de hoje
-    final int totalTreinosConcluidos = _treinoConcluidoHoje ? 1 : 0;
-    final double progressoNivel = (totalTreinosConcluidos % 5) / 5.0;
-    final String patamarAtual = totalTreinosConcluidos >= 15
+    // Tratamento para usuários novos não puxarem o cache indevidamente
+    final resumoAnalise = temPlano
+        ? (_planoData?['resumo_analise'] ??
+              planoCache?['resumo_analise'] ??
+              'Seu plano inteligente está ativo e estruturado sob medida.')
+        : 'Plano pendente. A IA gerará seu plano no seu primeiro treino/refeição.';
+
+    final nomeTreinoIA = temPlano
+        ? (_planoData?['treino_sugerido_nome'] ??
+              planoCache?['treino_sugerido_nome'] ??
+              'Treino do Dia: Calistenia')
+        : 'Pronto para começar?';
+
+    // Progresso 100% Real baseado no Banco de Dados
+    final double progressoNivel = _totalTreinosConcluidos == 0
+        ? 0.0
+        : (_totalTreinosConcluidos % 5) / 5.0;
+    final String patamarAtual = _totalTreinosConcluidos >= 15
         ? 'Patamar: Elite (Avançado)'
-        : totalTreinosConcluidos >= 10
+        : _totalTreinosConcluidos >= 10
         ? 'Patamar: Intermediário'
         : 'Patamar: Fundacional (Iniciante)';
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
-      physics: const BouncingScrollPhysics(), // Scroll mais suave
+      physics: const BouncingScrollPhysics(),
       children: [
         // --- CARD DE ANÁLISE NUTRI & PERSONAL IA ---
         Container(
@@ -153,16 +180,20 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.psychology, color: Colors.greenAccent, size: 22),
-                  SizedBox(width: 8),
+                  Icon(
+                    Icons.psychology,
+                    color: temPlano ? Colors.greenAccent : Colors.grey,
+                    size: 22,
+                  ),
+                  const SizedBox(width: 8),
                   Text(
                     'Análise Nutri & Personal IA',
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.bold,
-                      color: Colors.greenAccent,
+                      color: temPlano ? Colors.greenAccent : Colors.grey,
                     ),
                   ),
                 ],
@@ -185,7 +216,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           padding: const EdgeInsets.all(20.0),
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E), // Fundo um pouco mais suave
+            color: const Color(0xFF1C1C1E),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -387,8 +418,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 16),
 
-        const SizedBox(height: 16), // <--- Espaçamento adicionado aqui
         // --- CARD DE GALERIA DE CONQUISTAS (MODERNIZADO) ---
         Container(
           decoration: BoxDecoration(
@@ -470,7 +501,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Tratamento para extrair apenas o primeiro nome e evitar nome vazio
     final nomeCompleto = _usuarioData?['nome']?.toString().trim() ?? '';
     final primeiroNome = nomeCompleto.isNotEmpty
         ? nomeCompleto.split(' ').first

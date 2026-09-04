@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'nutricao_ia_service.dart';
+import 'app_cache.dart';
 import 'home_screen.dart';
 
 class AnamneseScreen extends StatefulWidget {
@@ -28,7 +30,6 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
   bool _isLoading = false;
 
   Future<void> _gerarPlano() async {
-    // 2. Validação: Impede o envio se faltar alguma informação
     if (_pesoController.text.isEmpty ||
         _alturaController.text.isEmpty ||
         _idadeController.text.isEmpty ||
@@ -52,7 +53,7 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
       final int anoNascimento = DateTime.now().year - idade;
       final String dataNascimentoFormatada = '$anoNascimento-01-01';
 
-      // Atualiza os dados físicos na tabela 'usuarios'
+      // 1. Salva os dados físicos reais no Banco
       await supabase
           .from('usuarios')
           .update({
@@ -62,7 +63,6 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
           })
           .eq('id', widget.usuarioId);
 
-      // Mapeamento para o enum do banco
       String objetivoBanco = 'Hipertrofia';
       if (_objetivoSelecionado!.contains('Emagrecer'))
         objetivoBanco = 'Perder Peso';
@@ -82,8 +82,29 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
         'nivel_atividade': nivelBanco,
       });
 
-      // (Opcional) Simula tempo de processamento da IA
-      await Future.delayed(const Duration(seconds: 2));
+      // ==========================================
+      // 2. CHAMA A INTELIGÊNCIA ARTIFICIAL (GEMINI)
+      // ==========================================
+      final double pesoAtual = double.tryParse(_pesoController.text) ?? 75.0;
+
+      final planoIA = await NutricaoIAService.gerarCardapioDiario(
+        peso: pesoAtual,
+        consomeCarne: _consomeCarne,
+        objetivo: _objetivoSelecionado!,
+      );
+
+      // Salva no AppCache para a Home e a tela de Dieta conseguirem ler imediatamente
+      AppCache.planoAtual = {
+        'resumo_analise':
+            'Plano inteligente gerado! Foco em $_objetivoSelecionado.',
+        'treino_sugerido_nome': 'Treino de Calistenia ($nivelBanco)',
+        'cardapio': planoIA?['sugestoes'] ?? [],
+        // Calculos base para não zerar os macros na Home inicial:
+        'calorias_alvo': (pesoAtual * 25).toInt(),
+        'proteinas_g_alvo': (pesoAtual * 2).toInt(),
+        'carboidratos_g_alvo': (pesoAtual * 3).toInt(),
+        'gorduras_g_alvo': (pesoAtual * 0.8).toInt(),
+      };
 
       if (mounted) {
         Navigator.pushAndRemoveUntil(
@@ -97,7 +118,7 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro ao salvar dados: $e')));
+            .showSnackBar(SnackBar(content: Text('Erro ao gerar plano: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
