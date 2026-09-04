@@ -60,25 +60,19 @@ class _DietaScreenState extends State<DietaScreen> {
     );
   }
 
-  // --- FLUXO REAL DA IA VISION (CÂMERA) ---
   Future<void> _capturarEAnalisarFoto() async {
     try {
-      // Abre a câmera (ou galeria dependendo do dispositivo/web)
       final XFile? foto = await _picker.pickImage(source: ImageSource.camera);
-
       if (foto == null) return;
 
       if (mounted) _mostrarLoadingIA('Vision IA analisando prato...');
 
-      // Transforma a foto em bytes para a IA conseguir ler
       final bytes = await foto.readAsBytes();
-
-      // CHAMA O GEMINI VISION DE VERDADE!
       final resultadoIA = await NutricaoIAService.analisarRefeicaoPorFoto(
         bytes,
       );
 
-      if (mounted) Navigator.pop(context); // Fecha o loading
+      if (mounted) Navigator.pop(context);
 
       if (resultadoIA != null) {
         await _dietaRepository.registrarRefeicao(
@@ -105,8 +99,7 @@ class _DietaScreenState extends State<DietaScreen> {
       }
     } catch (e) {
       if (mounted) {
-        if (Navigator.canPop(context))
-          Navigator.pop(context); // Garante fechar loading em caso de erro
+        if (Navigator.canPop(context)) Navigator.pop(context);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Erro ao analisar prato: $e')));
@@ -114,27 +107,25 @@ class _DietaScreenState extends State<DietaScreen> {
     }
   }
 
-  // --- FLUXO REAL DA IA POR TEXTO ---
   Future<void> _registrarManual() async {
     final descricaoDigitada = _textoController.text.trim();
     if (descricaoDigitada.isEmpty) return;
 
-    FocusScope.of(context).unfocus(); // Esconde o teclado
+    FocusScope.of(context).unfocus();
 
     if (mounted) _mostrarLoadingIA('IA calculando macronutrientes...');
 
     try {
-      // CHAMA O GEMINI TEXT DE VERDADE!
       final resultadoIA = await NutricaoIAService.analisarRefeicao(
         descricao: descricaoDigitada,
       );
 
-      if (mounted) Navigator.pop(context); // Fecha o loading
+      if (mounted) Navigator.pop(context);
 
       if (resultadoIA != null) {
         await _dietaRepository.registrarRefeicao(
           usuarioId: widget.usuarioId,
-          descricao: descricaoDigitada, // Usa o nome que o usuário digitou
+          descricao: descricaoDigitada,
           calorias: resultadoIA['calorias'] ?? 0,
           proteinas: resultadoIA['proteinas_g'] ?? 0,
           carboidratos: resultadoIA['carboidratos_g'] ?? 0,
@@ -156,6 +147,29 @@ class _DietaScreenState extends State<DietaScreen> {
     }
   }
 
+  // --- NOVA FUNÇÃO: EXCLUIR REFEIÇÃO ---
+  Future<void> _excluirRefeicao(int id) async {
+    try {
+      await _dietaRepository.excluirRefeicao(id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Refeição excluída.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+
+      _carregarRefeicoes(); // Atualiza a lista na tela
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro ao excluir: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -167,7 +181,6 @@ class _DietaScreenState extends State<DietaScreen> {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // --- DIRETRIZES DA NUTRI IA ---
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -205,7 +218,6 @@ class _DietaScreenState extends State<DietaScreen> {
         ),
         const SizedBox(height: 24),
 
-        // --- REGISTRAR CONSUMO ---
         const Text(
           'Registrar Consumo Diário',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -260,7 +272,6 @@ class _DietaScreenState extends State<DietaScreen> {
         ),
         const SizedBox(height: 24),
 
-        // --- LISTAGEM DE REFEIÇÕES DO DIA ---
         const Text(
           'Refeições de Hoje',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -311,12 +322,33 @@ class _DietaScreenState extends State<DietaScreen> {
                           fontSize: 12,
                         ),
                       ),
-                      trailing: Text(
-                        '${ref['calorias']} kcal',
-                        style: const TextStyle(
-                          color: Colors.greenAccent,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      // --- NOVO: BOTÃO DE EXCLUIR NA LATERAL DIREITA ---
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${ref['calorias']} kcal',
+                            style: const TextStyle(
+                              color: Colors.greenAccent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.redAccent,
+                              size: 22,
+                            ),
+                            tooltip: 'Excluir refeição',
+                            onPressed: () {
+                              // Exclui a refeição usando o ID dela salvo no banco
+                              if (ref['id'] != null) {
+                                _excluirRefeicao(ref['id']);
+                              }
+                            },
+                          ),
+                        ],
                       ),
                     ),
                   );

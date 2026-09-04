@@ -69,18 +69,21 @@ class DietaRepository {
     required int carboidratos,
     required int gorduras,
   }) async {
-    final agora = DateTime.now()
-        .toIso8601String(); // Salva a data e hora exatas
+    final agora = DateTime.now().toIso8601String();
 
     await _supabase.from('consumo_alimentar').insert({
       'usuario_id': usuarioId,
       'data_registro': agora,
-      'nome_refeicao':
-          descricao, // Usando a coluna original que você já tinha no banco!
+      'nome_refeicao': descricao,
       'calorias': calorias,
       'proteinas_g': proteinas,
       'carboidratos_g': carboidratos,
       'gorduras_g': gorduras,
     });
+  }
+
+  // --- NOVA FUNÇÃO: DELETA UMA REFEIÇÃO DO BANCO ---
+  Future<void> excluirRefeicao(int idRefeicao) async {
+    await _supabase.from('consumo_alimentar').delete().eq('id', idRefeicao);
   }
 }
