@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _treinoConcluidoHoje = false;
 
   int _totalTreinosConcluidos = 0;
-  int _sequenciaAtual = 0; // <-- Nova variável para guardar os dias seguidos
+  int _sequenciaAtual = 0;
 
   final _dietaRepository = DietaRepository();
   Map<String, int> _totaisConsumidos = {
@@ -48,11 +48,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _carregarDashboard();
   }
 
-  // --- NOVA LÓGICA: CALCULA DIAS SEGUIDOS ---
   int _calcularSequencia(List<dynamic> treinos) {
     if (treinos.isEmpty) return 0;
 
-    // Extrai apenas as datas únicas no formato YYYY-MM-DD
     Set<String> datasUnicas = {};
     for (var t in treinos) {
       final data = t['data_realizacao']?.toString().split('T')[0];
@@ -69,13 +67,11 @@ class _HomeScreenState extends State<HomeScreen> {
         .toIso8601String()
         .split('T')[0];
 
-    // Se não treinou hoje e nem ontem, perdeu a sequência (zera a barra)
     if (!datasOrdenadas.contains(hojeStr) &&
         !datasOrdenadas.contains(ontemStr)) {
       return 0;
     }
 
-    // Conta quantos dias para trás existem na lista
     DateTime currentDate = datasOrdenadas.contains(hojeStr)
         ? dataVerificacao
         : dataVerificacao.subtract(const Duration(days: 1));
@@ -87,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (datasOrdenadas.contains(expectedDateStr)) {
         streak++;
       } else {
-        break; // Buraco na sequência encontrado
+        break;
       }
     }
     return streak;
@@ -108,7 +104,6 @@ class _HomeScreenState extends State<HomeScreen> {
           .select()
           .eq('usuario_id', widget.usuarioId);
 
-      // BUSCA O PLANO SALVO NO BANCO E VERIFICA A VALIDADE (MEIA NOITE)
       final plano = await _repository.buscarPlanoAtivo(widget.usuarioId);
       final hoje = DateTime.now().toIso8601String().split('T')[0];
 
@@ -130,9 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _treinoConcluidoHoje = treinoHoje;
           _totaisConsumidos = totaisDieta;
           _totalTreinosConcluidos = treinosRealizados.length;
-          _sequenciaAtual = _calcularSequencia(
-            treinosRealizados,
-          ); // Atualiza o Streak
+          _sequenciaAtual = _calcularSequencia(treinosRealizados);
           _planoExpirado = expirado;
           _isLoading = false;
         });
@@ -142,7 +135,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // --- NOVO POP-UP DE SUBIR DE NÍVEL ---
   void _mostrarDialogEvolucao() {
     showDialog(
       context: context,
@@ -266,12 +258,23 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildAbaHome() {
     final planoCache = AppCache.planoAtual;
-    final bool temPlano = planoCache != null && planoCache.isNotEmpty;
+    final bool temPlano =
+        (_planoData != null && _planoData!.isNotEmpty) ||
+        (planoCache != null && planoCache.isNotEmpty);
 
-    final caloriasAlvo = planoCache?['calorias_alvo'] ?? 2000;
-    final protAlvo = planoCache?['proteinas_g_alvo'] ?? 150;
-    final carbAlvo = planoCache?['carboidratos_g_alvo'] ?? 200;
-    final gordAlvo = planoCache?['gorduras_g_alvo'] ?? 60;
+    // Mapeamento preciso das metas definidas pelo usuário no banco ou cache
+    final caloriasAlvo =
+        _planoData?['calorias_alvo'] ?? planoCache?['calorias_alvo'] ?? 2000;
+    final protAlvo =
+        _planoData?['proteinas_g_alvo'] ??
+        planoCache?['proteinas_g_alvo'] ??
+        150;
+    final carbAlvo =
+        _planoData?['carboidratos_g_alvo'] ??
+        planoCache?['carboidratos_g_alvo'] ??
+        200;
+    final gordAlvo =
+        _planoData?['gorduras_g_alvo'] ?? planoCache?['gorduras_g_alvo'] ?? 60;
 
     final kcalAtual = _totaisConsumidos['calorias'] ?? 0;
     final protAtual = _totaisConsumidos['proteinas'] ?? 0;
@@ -279,14 +282,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final gordAtual = _totaisConsumidos['gorduras'] ?? 0;
 
     final resumoAnalise = temPlano
-        ? planoCache['resumo_analise']
+        ? (_planoData?['dados_ia']?['resumo_analise'] ??
+              planoCache?['resumo_analise'] ??
+              'Plano inteligente ativo.')
         : 'Plano pendente. Vá em "Seu Histórico" para configurar o perfil ou refaça o Anamnese.';
 
     final nomeTreinoIA = temPlano
-        ? planoCache['treino_sugerido_nome']
-        : 'Treino de Calistenia (Padrão)';
+        ? (_planoData?['dados_ia']?['treino_sugerido_nome'] ??
+              planoCache?['treino_sugerido_nome'] ??
+              'Treino de Calistenia')
+        : 'Treino Padrão';
 
-    // A barra agora mede a STREAK a cada 10 dias (10 dias = 100%)
     double progressoNivel = _sequenciaAtual == 0
         ? 0.0
         : (_sequenciaAtual % 10 == 0 ? 1.0 : (_sequenciaAtual % 10) / 10.0);
@@ -463,16 +469,17 @@ class _HomeScreenState extends State<HomeScreen> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => DetalhesTreinoScreen(
-                                  dadosPlano: AppCache.planoAtual ?? {},
+                                  dadosPlano:
+                                      _planoData?['dados_ia'] ??
+                                      AppCache.planoAtual ??
+                                      {},
                                   usuarioId: widget.usuarioId,
                                 ),
                               ),
                             );
 
-                            // Ao voltar do treino com sucesso, recarrega e verifica se bateu os 10 dias!
                             if (finalizou == true) {
                               await _carregarDashboard();
-                              // Mostra a celebração se for múltiplo de 10 dias seguidos!
                               if (_sequenciaAtual > 0 &&
                                   _sequenciaAtual % 10 == 0) {
                                 _mostrarDialogEvolucao();

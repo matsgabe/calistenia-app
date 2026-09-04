@@ -42,7 +42,7 @@ class NutricaoIAService {
       return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     } catch (e) {
       debugPrint(
-        'Fallback ativado: gemini-3.5-flash-lite falhou ($e). Tentando 3.5-flash...',
+        'Fallback ativado: gemini-3.5-flash-lite falhou ($e). Tentando gemini-3.5-flash-lite...',
       );
       return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     }
@@ -70,13 +70,13 @@ class NutricaoIAService {
       return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     } catch (e) {
       debugPrint(
-        'Fallback ativado: 3.5-flash-lite falhou ($e). Tentando 3.5-flash...',
+        'Fallback ativado: 3.5-flash-lite falhou ($e). Tentando gemini-3.5-flash-lite...',
       );
       return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     }
   }
 
-  // --- NOVA FUNÇÃO: GERA DIETA E TREINO COM PROGRESSÃO ---
+  // --- NOVA FUNÇÃO: GERA DIETA E TREINO COM CÁLCULO EXATO ---
   static Future<Map<String, dynamic>?> gerarPlanoCompleto({
     required double peso,
     required bool consomeCarne,
@@ -84,8 +84,27 @@ class NutricaoIAService {
     required String nivel,
     required bool lesaoLombar,
     required bool lesaoOmbro,
-    required List<Map<String, dynamic>> historicoRecente, // <-- Adicionado
+    required List<Map<String, dynamic>> historicoRecente,
   }) async {
+    // 1. CÁLCULO MATEMÁTICO REAL BASEADO NO USUÁRIO
+    int kcalAlvo;
+    final obj = objetivo.toLowerCase();
+
+    if (obj.contains('emagrecer') || obj.contains('perder')) {
+      kcalAlvo = (peso * 22).round(); // Déficit calórico
+    } else if (obj.contains('hipertrofia') || obj.contains('ganhar')) {
+      kcalAlvo = (peso * 28).round(); // Superávit calórico
+    } else {
+      kcalAlvo = (peso * 25).round(); // Manutenção
+    }
+
+    int protAlvo = (peso * 2.0).round(); // 2g/kg
+    int gordAlvo = (peso * 0.8).round(); // 0.8g/kg
+    int carbAlvo = ((kcalAlvo - (protAlvo * 4) - (gordAlvo * 9)) / 4)
+        .round(); // Restante
+    if (carbAlvo < 0) carbAlvo = 0;
+
+    // 2. MONTAGEM DO PROMPT
     final prompt =
         '''
     Atue como um personal trainer de elite e nutricionista especialista em Calistenia.
@@ -101,13 +120,13 @@ class NutricaoIAService {
     REGRA DE EVOLUÇÃO: Analise o Histórico Recente. Se o atleta treinou nos dias anteriores, aplique SOBRECARGA PROGRESSIVA no treino de hoje (adicione repetições, troque a variação para uma mais difícil ou mude o grupo muscular para permitir descanso). 
     Os exercícios DEVEM utilizar APENAS o peso do próprio corpo.
     
-    Retorne OBRIGATORIAMENTE um JSON com as chaves exatas:
+    Retorne OBRIGATORIAMENTE um JSON com as chaves exatas (use os cálculos exatos fornecidos abaixo):
     {
-      "calorias_alvo": 2500,
-      "proteinas_g_alvo": 160,
-      "carboidratos_g_alvo": 250,
-      "gorduras_g_alvo": 70,
-      "sugestoes": [{"refeicao": "Café", "itens": "Ovos", "calorias": 300}],
+      "calorias_alvo": $kcalAlvo,
+      "proteinas_g_alvo": $protAlvo,
+      "carboidratos_g_alvo": $carbAlvo,
+      "gorduras_g_alvo": $gordAlvo,
+      "sugestoes": [{"refeicao": "Café", "itens": "Sugira alimentos batendo as metas", "calorias": 300}],
       "treino_sugerido_nome": "Treino de Calistenia ($nivel)",
       "resumo_analise": "Análise da evolução e foco de hoje...",
       "treino_descricao": "Descrição do foco de hoje.",
@@ -128,7 +147,7 @@ class NutricaoIAService {
       return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     } catch (e) {
       debugPrint(
-        'Fallback ativado: gemini-3.5-flash-lite falhou ($e). Tentando 3.5-flash...',
+        'Fallback ativado: gemini-pro falhou ($e). Tentando 3.5-flash-lite...',
       );
       return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     }
