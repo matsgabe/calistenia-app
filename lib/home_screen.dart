@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import 'nutricao_ia_service.dart';
 import 'login_screen.dart';
 import 'app_cache.dart';
 import 'dieta_screen.dart';
@@ -9,6 +8,7 @@ import 'historico_screen.dart';
 import 'dieta_repository.dart';
 import 'detalhes_treino_screen.dart';
 import 'conquistas_screen.dart';
+import 'nutricao_ia_service.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -30,7 +30,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _planoData;
   bool _isLoading = true;
   bool _treinoConcluidoHoje = false;
+
   int _totalTreinosConcluidos = 0;
+  int _sequenciaAtual = 0; // <-- Nova variável para guardar os dias seguidos
 
   final _dietaRepository = DietaRepository();
   Map<String, int> _totaisConsumidos = {
@@ -46,6 +48,51 @@ class _HomeScreenState extends State<HomeScreen> {
     _carregarDashboard();
   }
 
+  // --- NOVA LÓGICA: CALCULA DIAS SEGUIDOS ---
+  int _calcularSequencia(List<dynamic> treinos) {
+    if (treinos.isEmpty) return 0;
+
+    // Extrai apenas as datas únicas no formato YYYY-MM-DD
+    Set<String> datasUnicas = {};
+    for (var t in treinos) {
+      final data = t['data_realizacao']?.toString().split('T')[0];
+      if (data != null) datasUnicas.add(data);
+    }
+    List<String> datasOrdenadas = datasUnicas.toList()
+      ..sort((a, b) => b.compareTo(a));
+
+    int streak = 0;
+    DateTime dataVerificacao = DateTime.now();
+    String hojeStr = dataVerificacao.toIso8601String().split('T')[0];
+    String ontemStr = dataVerificacao
+        .subtract(const Duration(days: 1))
+        .toIso8601String()
+        .split('T')[0];
+
+    // Se não treinou hoje e nem ontem, perdeu a sequência (zera a barra)
+    if (!datasOrdenadas.contains(hojeStr) &&
+        !datasOrdenadas.contains(ontemStr)) {
+      return 0;
+    }
+
+    // Conta quantos dias para trás existem na lista
+    DateTime currentDate = datasOrdenadas.contains(hojeStr)
+        ? dataVerificacao
+        : dataVerificacao.subtract(const Duration(days: 1));
+    for (int i = 0; i < datasOrdenadas.length; i++) {
+      String expectedDateStr = currentDate
+          .subtract(Duration(days: i))
+          .toIso8601String()
+          .split('T')[0];
+      if (datasOrdenadas.contains(expectedDateStr)) {
+        streak++;
+      } else {
+        break; // Buraco na sequência encontrado
+      }
+    }
+    return streak;
+  }
+
   Future<void> _carregarDashboard() async {
     try {
       final user = await _repository.buscarUsuario(widget.usuarioId);
@@ -58,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final treinosRealizados = await Supabase.instance.client
           .from('treinos_realizados')
-          .select('id')
+          .select()
           .eq('usuario_id', widget.usuarioId);
 
       // BUSCA O PLANO SALVO NO BANCO E VERIFICA A VALIDADE (MEIA NOITE)
@@ -70,7 +117,6 @@ class _HomeScreenState extends State<HomeScreen> {
         final dataPlano = plano['data_registro']?.toString() ?? '';
         if (dataPlano == hoje) {
           expirado = false;
-          // RESTAURA A MEMÓRIA DO APP DIRETO DO BANCO! Se fechar o app, não perde o treino.
           if (plano['dados_ia'] != null) {
             AppCache.planoAtual = plano['dados_ia'];
           }
@@ -84,6 +130,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _treinoConcluidoHoje = treinoHoje;
           _totaisConsumidos = totaisDieta;
           _totalTreinosConcluidos = treinosRealizados.length;
+          _sequenciaAtual = _calcularSequencia(
+            treinosRealizados,
+          ); // Atualiza o Streak
           _planoExpirado = expirado;
           _isLoading = false;
         });
@@ -93,7 +142,43 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // FUNÇÃO QUE RODA QUANDO O USUÁRIO CLICA EM "GERAR TREINO DE HOJE"
+  // --- NOVO POP-UP DE SUBIR DE NÍVEL ---
+  void _mostrarDialogEvolucao() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey.shade900,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: Colors.amber, size: 28),
+            SizedBox(width: 8),
+            Text(
+              'Nível Concluído! 🚀',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          'Incrível! Você alcançou uma sequência impecável de $_sequenciaAtual dias ininterruptos.\n\nSua disciplina está moldando um novo corpo. A IA vai elevar o nível do seu próximo desafio!',
+          style: const TextStyle(color: Colors.white70, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'BORA PRO PRÓXIMO!',
+              style: TextStyle(
+                color: Colors.greenAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _gerarNovoTreinoDiario() async {
     setState(() => _isGeneratingDaily = true);
 
@@ -101,8 +186,6 @@ class _HomeScreenState extends State<HomeScreen> {
       final historico = await _repository.buscarHistoricoRecente(
         widget.usuarioId,
       );
-
-      // 1. Pega o peso e objetivo reais do último registro no histórico
       final pesoAtual = historico.isNotEmpty
           ? (historico.first['peso_kg'] ?? 75.0)
           : 75.0;
@@ -110,7 +193,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ? (historico.first['objetivo'] ?? 'Hipertrofia')
           : 'Hipertrofia';
 
-      // 2. Sincroniza a IA exatamente com o seu "Patamar" da tela!
       String nivelDinamico = 'Iniciante';
       if (_totalTreinosConcluidos >= 15) {
         nivelDinamico = 'Avançado';
@@ -118,12 +200,11 @@ class _HomeScreenState extends State<HomeScreen> {
         nivelDinamico = 'Intermediário';
       }
 
-      // Manda a IA analisar o que o usuário fez nos últimos dias e criar um novo desafio
       final novoPlanoIA = await NutricaoIAService.gerarPlanoCompleto(
         peso: (pesoAtual as num).toDouble(),
         consomeCarne: true,
         objetivo: objetivoAtual.toString(),
-        nivel: nivelDinamico, // <-- CORREÇÃO: Agora a IA respeita o seu nível real!
+        nivel: nivelDinamico,
         lesaoLombar: false,
         lesaoOmbro: false,
         historicoRecente: historico,
@@ -137,16 +218,14 @@ class _HomeScreenState extends State<HomeScreen> {
         AppCache.planoAtual = novoPlanoIA;
       }
 
-      _carregarDashboard(); // Recarrega a tela com o plano de hoje
+      _carregarDashboard();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Erro ao gerar plano: $e')));
       }
     } finally {
-      if (mounted) {
-        setState(() => _isGeneratingDaily = false);
-      }
+      if (mounted) setState(() => _isGeneratingDaily = false);
     }
   }
 
@@ -189,13 +268,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final planoCache = AppCache.planoAtual;
     final bool temPlano = planoCache != null && planoCache.isNotEmpty;
 
-    // Busca metas do Cache (Anamnese)
     final caloriasAlvo = planoCache?['calorias_alvo'] ?? 2000;
     final protAlvo = planoCache?['proteinas_g_alvo'] ?? 150;
     final carbAlvo = planoCache?['carboidratos_g_alvo'] ?? 200;
     final gordAlvo = planoCache?['gorduras_g_alvo'] ?? 60;
 
-    // Busca Consumo Diário real do banco (DietaRepository)
     final kcalAtual = _totaisConsumidos['calorias'] ?? 0;
     final protAtual = _totaisConsumidos['proteinas'] ?? 0;
     final carbAtual = _totaisConsumidos['carboidratos'] ?? 0;
@@ -209,14 +286,10 @@ class _HomeScreenState extends State<HomeScreen> {
         ? planoCache['treino_sugerido_nome']
         : 'Treino de Calistenia (Padrão)';
 
-    final double progressoNivel = _totalTreinosConcluidos == 0
+    // A barra agora mede a STREAK a cada 10 dias (10 dias = 100%)
+    double progressoNivel = _sequenciaAtual == 0
         ? 0.0
-        : (_totalTreinosConcluidos % 5) / 5.0;
-    final String patamarAtual = _totalTreinosConcluidos >= 15
-        ? 'Patamar: Elite (Avançado)'
-        : _totalTreinosConcluidos >= 10
-        ? 'Patamar: Intermediário'
-        : 'Patamar: Fundacional (Iniciante)';
+        : (_sequenciaAtual % 10 == 0 ? 1.0 : (_sequenciaAtual % 10) / 10.0);
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
@@ -298,13 +371,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 20),
 
-        // --- BARRA DE PROGRESSÃO ---
+        // --- BARRA DE PROGRESSÃO DA CONSTÂNCIA (STREAK) ---
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: const Color(0xFF1C1C1E),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.amber.withOpacity(0.2)),
+            border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -315,24 +388,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   Row(
                     children: [
                       const Icon(
-                        Icons.trending_up,
-                        color: Colors.amber,
-                        size: 20,
+                        Icons.local_fire_department,
+                        color: Colors.orangeAccent,
+                        size: 22,
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        patamarAtual,
+                        'Sequência: $_sequenciaAtual dias',
                         style: const TextStyle(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: Colors.amber,
+                          color: Colors.orangeAccent,
                         ),
                       ),
                     ],
                   ),
                   Text(
                     '${(progressoNivel * 100).toInt()}%',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                    style: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -341,9 +418,18 @@ class _HomeScreenState extends State<HomeScreen> {
                 borderRadius: BorderRadius.circular(10),
                 child: LinearProgressIndicator(
                   value: progressoNivel,
-                  minHeight: 10,
-                  backgroundColor: Colors.black26,
-                  color: Colors.amber,
+                  minHeight: 12,
+                  backgroundColor: Colors.black45,
+                  color: Colors.orangeAccent,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Treine todos os dias para fechar a barra e evoluir. Se você pular um dia, a sequência zera!',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 12,
+                  height: 1.3,
                 ),
               ),
             ],
@@ -351,7 +437,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         const SizedBox(height: 20),
 
-        // --- CARD DE TREINO DO DIA ---
         // --- CARD DE TREINO DO DIA ---
         Container(
           decoration: BoxDecoration(
@@ -369,13 +454,12 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              // SE O PLANO ESTIVER EXPIRADO, O CLIQUE GERA O PLANO DE HOJE!
               onTap: _planoExpirado
                   ? _gerarNovoTreinoDiario
                   : (_treinoConcluidoHoje
                         ? null
                         : () async {
-                            await Navigator.push(
+                            final finalizou = await Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) => DetalhesTreinoScreen(
@@ -384,7 +468,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ),
                             );
-                            _carregarDashboard();
+
+                            // Ao voltar do treino com sucesso, recarrega e verifica se bateu os 10 dias!
+                            if (finalizou == true) {
+                              await _carregarDashboard();
+                              // Mostra a celebração se for múltiplo de 10 dias seguidos!
+                              if (_sequenciaAtual > 0 &&
+                                  _sequenciaAtual % 10 == 0) {
+                                _mostrarDialogEvolucao();
+                              }
+                            }
                           }),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
@@ -427,7 +520,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Text(
                             _planoExpirado
-                                ? 'Gerar Treino de Hoje'
+                                ? 'Gerar Treino de Hoje 🤖'
                                 : (_treinoConcluidoHoje
                                       ? 'Treino Concluído Hoje! 🏆'
                                       : nomeTreinoIA),
@@ -458,6 +551,73 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     if (!_treinoConcluidoHoje && !_isGeneratingDaily)
                       const Icon(Icons.chevron_right, color: Colors.grey),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // --- CARD DE GALERIA DE CONQUISTAS ---
+        Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.amber.withOpacity(0.2)),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ConquistasScreen(usuarioId: widget.usuarioId),
+                  ),
+                );
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events,
+                        color: Colors.amber,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Galeria de Conquistas',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Toque para ver suas insígnias e marcos',
+                            style: TextStyle(
+                              color: Colors.grey.shade400,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.grey),
                   ],
                 ),
               ),
@@ -538,7 +698,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onTap: (index) {
             setState(() => _abaAtual = index);
             if (index == 0 || index == 1) {
-              _carregarDashboard(); // Sincroniza sempre que navegar
+              _carregarDashboard();
             }
           },
         ),
