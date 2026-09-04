@@ -25,22 +25,23 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Truque: Formata o username como email para o Supabase aceitar sem reclamar
+      // Truque: Formata o username como email para o Supabase Auth aceitar sem reclamar
       final emailFormatado = username.contains('@')
           ? username
           : '$username@calistenia.app';
 
-      // 1. Autentica no Supabase Auth
+      // 1. Autentica no Supabase Auth (Aqui usamos o email fantasma)
       await Supabase.instance.client.auth.signInWithPassword(
         email: emailFormatado,
         password: senha,
       );
 
-      // 2. Busca o ID do usuário na tabela
+      // 2. Busca o ID do usuário na tabela pública (AQUI ESTAVA O ERRO!)
+      // Mudamos de .eq('email', ...) para .eq('username', ...)
       final userResponse = await Supabase.instance.client
           .from('usuarios')
           .select('id')
-          .eq('email', emailFormatado)
+          .eq('username', username)
           .single();
 
       final int usuarioId = userResponse['id'];
@@ -109,10 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   hintStyle: const TextStyle(color: Colors.grey),
                   filled: true,
                   fillColor: Colors.grey.shade900,
-                  prefixIcon: const Icon(
-                    Icons.person,
-                    color: Colors.grey,
-                  ), // Ícone alterado
+                  prefixIcon: const Icon(Icons.person, color: Colors.grey),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -164,8 +162,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                 ),
               ),
-              const SizedBox(height: 24), // Espaço entre os botões
-              // BOTÃO DE CADASTRO (Agora na posição correta)
+              const SizedBox(height: 24),
+
+              // BOTÃO DE CADASTRO
               TextButton(
                 onPressed: () {
                   Navigator.push(
