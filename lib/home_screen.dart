@@ -102,12 +102,28 @@ class _HomeScreenState extends State<HomeScreen> {
         widget.usuarioId,
       );
 
+      // 1. Pega o peso e objetivo reais do último registro no histórico
+      final pesoAtual = historico.isNotEmpty
+          ? (historico.first['peso_kg'] ?? 75.0)
+          : 75.0;
+      final objetivoAtual = historico.isNotEmpty
+          ? (historico.first['objetivo'] ?? 'Hipertrofia')
+          : 'Hipertrofia';
+
+      // 2. Sincroniza a IA exatamente com o seu "Patamar" da tela!
+      String nivelDinamico = 'Iniciante';
+      if (_totalTreinosConcluidos >= 15) {
+        nivelDinamico = 'Avançado';
+      } else if (_totalTreinosConcluidos >= 10) {
+        nivelDinamico = 'Intermediário';
+      }
+
       // Manda a IA analisar o que o usuário fez nos últimos dias e criar um novo desafio
       final novoPlanoIA = await NutricaoIAService.gerarPlanoCompleto(
-        peso: _usuarioData?['peso_kg'] ?? 75.0,
-        consomeCarne: true, // Ajuste conforme seu banco depois
-        objetivo: _usuarioData?['objetivo'] ?? 'Hipertrofia',
-        nivel: 'Intermediário', // Ajuste conforme perfil
+        peso: (pesoAtual as num).toDouble(),
+        consomeCarne: true,
+        objetivo: objetivoAtual.toString(),
+        nivel: nivelDinamico, // <-- CORREÇÃO: Agora a IA respeita o seu nível real!
         lesaoLombar: false,
         lesaoOmbro: false,
         historicoRecente: historico,
@@ -123,10 +139,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
       _carregarDashboard(); // Recarrega a tela com o plano de hoje
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Erro ao gerar plano: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro ao gerar plano: $e')));
+      }
     } finally {
-      setState(() => _isGeneratingDaily = false);
+      if (mounted) {
+        setState(() => _isGeneratingDaily = false);
+      }
     }
   }
 
