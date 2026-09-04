@@ -23,17 +23,15 @@ class _ConquistasScreenState extends State<ConquistasScreen> {
 
   Future<void> _carregarDadosConquistas() async {
     try {
+      // CORREÇÃO: Apontando para a tabela 'treinos_realizados'
       final response = await _supabase
-          .from('historico_fisico')
+          .from('treinos_realizados')
           .select()
           .eq('usuario_id', widget.usuarioId);
 
       final historico = List<Map<String, dynamic>>.from(response);
       _totalTreinos = historico.length;
-
-      // Lógica simples de cálculo de dias únicos consecutivos ou total
-      _sequenciaDias =
-          _totalTreinos; // Pode ser refinado para dias únicos se desejar
+      _sequenciaDias = _totalTreinos;
 
       if (mounted) {
         setState(() {

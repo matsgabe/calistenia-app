@@ -11,7 +11,8 @@ class HistoricoScreen extends StatefulWidget {
 
 class _HistoricoScreenState extends State<HistoricoScreen> {
   final _supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> _historico = [];
+  List<Map<String, dynamic>> _historicoCombinado = [];
+  int _totalTreinos = 0;
   bool _isLoading = true;
 
   @override
@@ -22,19 +23,76 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
 
   Future<void> _carregarHistorico() async {
     try {
-      final response = await _supabase
-          .from('historico_fisico')
+      // 1. Busca os TREINOS REAIS
+      final treinosResponse = await _supabase
+          .from('treinos_realizados')
           .select()
           .eq('usuario_id', widget.usuarioId);
 
+      // 2. Busca as REFEIÇÕES
+      final refeicoesResponse = await _supabase
+          .from('consumo_alimentar')
+          .select()
+          .eq('usuario_id', widget.usuarioId);
+
+      List<Map<String, dynamic>> tempHistorico = [];
+
+      // Adiciona os treinos à lista combinada
+      for (var t in treinosResponse) {
+        tempHistorico.add({
+          'tipo': 'treino',
+          'data': t['data_realizacao'] ?? t['created_at'],
+          'titulo': 'Sessão de Calistenia Concluída',
+          'subtitulo': 'Duração: ${(t['duracao_segundos'] ?? 1800) ~/ 60} min',
+          'icone': Icons.fitness_center,
+          'cor': Colors.greenAccent,
+        });
+      }
+
+      // Adiciona as refeições à lista combinada
+      for (var r in refeicoesResponse) {
+        tempHistorico.add({
+          'tipo': 'refeicao',
+          'data': r['data_registro'] ?? r['created_at'],
+          'titulo': r['nome_refeicao'] ?? 'Refeição Registrada',
+          'subtitulo': '${r['calorias']} kcal consumidas',
+          'icone': Icons.restaurant,
+          'cor': Colors.orangeAccent,
+        });
+      }
+
+      // Ordena a lista da data mais recente para a mais antiga
+      tempHistorico.sort((a, b) {
+        final dateA = a['data']?.toString() ?? '';
+        final dateB = b['data']?.toString() ?? '';
+        return dateB.compareTo(dateA);
+      });
+
       if (mounted) {
         setState(() {
-          _historico = List<Map<String, dynamic>>.from(response);
+          _historicoCombinado = tempHistorico;
+          _totalTreinos =
+              treinosResponse.length; // O contador usa APENAS treinos
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _formatarData(String rawDate) {
+    if (rawDate.isEmpty) return 'Data recente';
+    try {
+      final parsedDate = DateTime.parse(rawDate);
+      final dia = parsedDate.day.toString().padLeft(2, '0');
+      final mes = parsedDate.month.toString().padLeft(2, '0');
+      final ano = (parsedDate.year % 100).toString().padLeft(2, '0');
+      final hora = parsedDate.hour.toString().padLeft(2, '0');
+      final min = parsedDate.minute.toString().padLeft(2, '0');
+      return '$dia/$mes/$ano às $hora:$min';
+    } catch (_) {
+      return rawDate.split('T')[0];
     }
   }
 
@@ -46,11 +104,10 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
       );
     }
 
-    final totalTreinos = _historico.length;
-
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
+        // --- BANNER DE ESTATÍSTICAS ---
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
@@ -70,7 +127,7 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '$totalTreinos',
+                    '$_totalTreinos',
                     style: const TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
@@ -92,7 +149,7 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    totalTreinos > 0 ? 'Em Chamas 🔥' : 'Iniciando',
+                    _totalTreinos > 0 ? 'Em Chamas 🔥' : 'Iniciando',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -109,16 +166,18 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
         ),
         const SizedBox(height: 24),
         const Text(
-          'Jornada de Calistenia',
+          'Timeline de Atividades',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        _historico.isEmpty
+
+        // --- LISTAGEM DO HISTÓRICO ---
+        _historicoCombinado.isEmpty
             ? const Padding(
                 padding: EdgeInsets.symmetric(vertical: 40.0),
                 child: Center(
                   child: Text(
-                    'Nenhum treino concluído ainda. Conclua o seu primeiro na Home! 🏆',
+                    'Nenhuma atividade ainda. Faça um treino ou registre uma refeição! 🏆',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey),
                   ),
@@ -127,53 +186,49 @@ class _HistoricoScreenState extends State<HistoricoScreen> {
             : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: _historico.length,
+                itemCount: _historicoCombinado.length,
                 itemBuilder: (context, index) {
-                  final item = _historico[index];
-                  final rawDate =
-                      item['data_registro'] ?? item['created_at'] ?? '';
-                  String dataFormatada = 'Data recente';
-
-                  if (rawDate.isNotEmpty) {
-                    try {
-                      final parsedDate = DateTime.parse(rawDate.toString());
-                      final dia = parsedDate.day.toString().padLeft(2, '0');
-                      final mes = parsedDate.month.toString().padLeft(2, '0');
-                      final ano = (parsedDate.year % 100).toString().padLeft(
-                        2,
-                        '0',
-                      );
-                      dataFormatada = '$dia/$mes/$ano';
-                    } catch (_) {
-                      dataFormatada = rawDate.toString();
-                    }
-                  }
+                  final item = _historicoCombinado[index];
 
                   return Card(
                     color: Colors.grey.shade900,
                     margin: const EdgeInsets.only(bottom: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: item['cor'].withOpacity(0.3)),
                     ),
                     child: ListTile(
-                      leading: const CircleAvatar(
-                        backgroundColor: Colors.greenAccent,
-                        child: Icon(Icons.check, color: Colors.black),
+                      leading: CircleAvatar(
+                        backgroundColor: item['cor'].withOpacity(0.2),
+                        child: Icon(item['icone'], color: item['cor']),
                       ),
-                      title: const Text(
-                        'Sessão de Calistenia Concluída',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        'Data: $dataFormatada',
+                      title: Text(
+                        item['titulo'],
                         style: const TextStyle(
-                          color: Colors.grey,
-                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
                         ),
                       ),
-                      trailing: const Icon(
-                        Icons.emoji_events,
-                        color: Colors.amber,
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text(
+                            item['subtitulo'],
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatarData(item['data'].toString()),
+                            style: const TextStyle(
+                              color: Colors.grey,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   );
