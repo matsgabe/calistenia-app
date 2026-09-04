@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'register_screen.dart';
 import 'home_screen.dart';
-import 'usuario_repository.dart';
+import 'cadastro_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,111 +12,173 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _senhaController = TextEditingController();
   bool _isLoading = false;
 
-  Future<void> _efetuarLogin() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      try {
-        final repository = UsuarioRepository();
-        final usuario = await repository.fazerLogin(
-          _usernameController.text.trim(),
-          _senhaController.text.trim(),
+  Future<void> _entrar() async {
+    final username = _usernameController.text.trim();
+    final senha = _senhaController.text.trim();
+
+    if (username.isEmpty || senha.isEmpty) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      // Truque: Formata o username como email para o Supabase aceitar sem reclamar
+      final emailFormatado = username.contains('@')
+          ? username
+          : '$username@calistenia.app';
+
+      // 1. Autentica no Supabase Auth
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: emailFormatado,
+        password: senha,
+      );
+
+      // 2. Busca o ID do usuário na tabela
+      final userResponse = await Supabase.instance.client
+          .from('usuarios')
+          .select('id')
+          .eq('email', emailFormatado)
+          .single();
+
+      final int usuarioId = userResponse['id'];
+
+      // 3. Redireciona para a Home
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(usuarioId: usuarioId),
+          ),
         );
-
-        if (!mounted) return;
-
-        if (usuario != null) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => HomeScreen(usuarioId: usuario['id']),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Usuário ou senha incorretos, ou conta não existe.',
-              ),
-            ),
-          );
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('Erro: $e')));
-        }
-      } finally {
-        if (mounted) setState(() => _isLoading = false);
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Erro ao fazer login. Verifique seu usuário e senha.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Entrar no Calistenia App')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: ListView(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 40),
-              const Text(
-                'Bem-vindo de volta!',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              TextFormField(
-                key: const Key('input_login_username'),
-                controller: _usernameController,
-                decoration: const InputDecoration(
-                  labelText: 'Username',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) =>
-                    value!.isEmpty ? 'Informe seu username' : null,
+              const Icon(
+                Icons.fitness_center,
+                color: Colors.greenAccent,
+                size: 64,
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                key: const Key('input_login_senha'),
+              const Text(
+                'Calistenia IA',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Sua jornada de força começa aqui.',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 40),
+
+              // CAMPO USERNAME
+              TextField(
+                controller: _usernameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Username',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey.shade900,
+                  prefixIcon: const Icon(
+                    Icons.person,
+                    color: Colors.grey,
+                  ), // Ícone alterado
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // CAMPO SENHA
+              TextField(
                 controller: _senhaController,
-                decoration: const InputDecoration(
-                  labelText: 'Senha',
-                  border: OutlineInputBorder(),
-                ),
                 obscureText: true,
-                validator: (value) =>
-                    value!.isEmpty ? 'Informe sua senha' : null,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                key: const Key('btn_fazer_login'),
-                onPressed: _isLoading ? null : _efetuarLogin,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Senha',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey.shade900,
+                  prefixIcon: const Icon(Icons.lock, color: Colors.grey),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
-                child: _isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text('Entrar', style: TextStyle(fontSize: 16)),
               ),
+              const SizedBox(height: 32),
+
+              // BOTÃO ENTRAR
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _entrar,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.black)
+                      : const Text(
+                          'ENTRAR',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 24), // Espaço entre os botões
+              // BOTÃO DE CADASTRO (Agora na posição correta)
               TextButton(
-                key: const Key('btn_ir_para_registro'),
                 onPressed: () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const RegisterScreen(),
+                      builder: (context) => const CadastroScreen(),
                     ),
                   );
                 },
-                child: const Text('Não tem uma conta? Cadastre-se'),
+                child: const Text(
+                  'Não tem uma conta? Cadastre-se',
+                  style: TextStyle(color: Colors.greenAccent, fontSize: 14),
+                ),
               ),
             ],
           ),

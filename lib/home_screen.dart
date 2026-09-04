@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'login_screen.dart';
 import 'app_cache.dart';
 import 'dieta_screen.dart';
 import 'treino_screen.dart';
@@ -7,7 +7,8 @@ import 'usuario_repository.dart';
 import 'historico_screen.dart';
 import 'dieta_repository.dart';
 import 'detalhes_treino_screen.dart';
-import 'conquistas_screen.dart'; // Import da tela de conquistas
+import 'conquistas_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   final int usuarioId;
@@ -66,6 +67,20 @@ class _HomeScreenState extends State<HomeScreen> {
         ).showSnackBar(SnackBar(content: Text('Erro ao carregar dados: $e')));
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _deslogar() async {
+    // Desloga do Supabase
+    await Supabase.instance.client.auth.signOut();
+
+    if (mounted) {
+      // Navega de volta para a tela de Login e limpa o histórico de navegação
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        (route) => false,
+      );
     }
   }
 
@@ -466,7 +481,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_abaAtual == 2) tituloAppBar = 'Seu Histórico';
 
     return Scaffold(
-      backgroundColor: Colors.black, // Força o fundo escuro consistente
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text(
           tituloAppBar,
@@ -474,6 +489,13 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         elevation: 0,
         backgroundColor: Colors.black,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.exit_to_app, color: Colors.redAccent),
+            onPressed: () => _deslogar(),
+            tooltip: 'Sair da conta',
+          ),
+        ],
       ),
       body: _abaAtual == 0
           ? _buildAbaHome()
