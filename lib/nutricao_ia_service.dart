@@ -76,7 +76,7 @@ class NutricaoIAService {
     }
   }
 
-  // --- NOVA FUNÇÃO: GERA DIETA E TREINO DE CALISTENIA JUNTOS ---
+  // --- NOVA FUNÇÃO: GERA DIETA E TREINO COM PROGRESSÃO ---
   static Future<Map<String, dynamic>?> gerarPlanoCompleto({
     required double peso,
     required bool consomeCarne,
@@ -84,38 +84,40 @@ class NutricaoIAService {
     required String nivel,
     required bool lesaoLombar,
     required bool lesaoOmbro,
+    required List<Map<String, dynamic>> historicoRecente, // <-- Adicionado
   }) async {
     final prompt =
         '''
-    Atue como um personal trainer de elite e nutricionista especialista em Calistenia (treino estrito com peso corporal).
+    Atue como um personal trainer de elite e nutricionista especialista em Calistenia.
     
     Perfil do Atleta:
-    - Peso: $peso kg
-    - Objetivo: $objetivo
-    - Nível na Calistenia: $nivel
+    - Peso: $peso kg | Objetivo: $objetivo | Nível: $nivel
     - Consome carne: $consomeCarne
     - Dores/Lesões: Lombar ($lesaoLombar), Ombros ($lesaoOmbro).
+    
+    Histórico Recente de Treinos: $historicoRecente
 
-    Crie um plano completo. Os exercícios de treino DEVEM utilizar APENAS o peso do próprio corpo. Adapte e substitua exercícios que possam forçar a lombar ou ombros caso o atleta possua lesões nessas áreas.
+    Crie o plano de HOJE. 
+    REGRA DE EVOLUÇÃO: Analise o Histórico Recente. Se o atleta treinou nos dias anteriores, aplique SOBRECARGA PROGRESSIVA no treino de hoje (adicione repetições, troque a variação para uma mais difícil ou mude o grupo muscular para permitir descanso). 
+    Os exercícios DEVEM utilizar APENAS o peso do próprio corpo.
     
     Retorne OBRIGATORIAMENTE um JSON com as chaves exatas:
     {
-      "sugestoes": [
-        {"refeicao": "Café da Manhã", "itens": "Ex: Ovos mexidos e pão", "calorias": 350},
-        {"refeicao": "Almoço", "itens": "Ex: Frango e arroz", "calorias": 650},
-        {"refeicao": "Café da Tarde", "itens": "Ex: Aveia e iogurte", "calorias": 300},
-        {"refeicao": "Jantar", "itens": "Ex: Salada e atum", "calorias": 500}
-      ],
+      "calorias_alvo": 2500,
+      "proteinas_g_alvo": 160,
+      "carboidratos_g_alvo": 250,
+      "gorduras_g_alvo": 70,
+      "sugestoes": [{"refeicao": "Café", "itens": "Ovos", "calorias": 300}],
       "treino_sugerido_nome": "Treino de Calistenia ($nivel)",
-      "resumo_analise": "Análise focada no condicionamento de calistenia para este atleta...",
+      "resumo_analise": "Análise da evolução e foco de hoje...",
+      "treino_descricao": "Descrição do foco de hoje.",
       "exercicios": [
         {
           "nome": "Flexão de Braços (Push-up)",
           "series": 3,
           "repeticoes": "10 a 15",
-          "instrucoes": "Mantenha o corpo em prancha reta. Desça até o peito quase tocar o chão e empurre explosivamente. Mantenha os cotovelos a 45 graus para proteger os ombros."
-        },
-        // Gere entre 5 e 6 exercícios completos
+          "instrucoes": "Mantenha o corpo em prancha reta..."
+        }
       ]
     }
     ''';

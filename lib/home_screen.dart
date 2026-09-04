@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'nutricao_ia_service.dart';
 import 'login_screen.dart';
 import 'app_cache.dart';
 import 'dieta_screen.dart';
@@ -21,9 +22,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _abaAtual = 0;
+  bool _isGeneratingDaily = false;
+  bool _planoExpirado = false;
 
   final _repository = UsuarioRepository();
   Map<String, dynamic>? _usuarioData;
+  Map<String, dynamic>? _planoData;
   bool _isLoading = true;
   bool _treinoConcluidoHoje = false;
   int _totalTreinosConcluidos = 0;
@@ -48,34 +52,81 @@ class _HomeScreenState extends State<HomeScreen> {
       final totaisDieta = await _dietaRepository.buscarTotaisDiarios(
         widget.usuarioId,
       );
-
-      // Usa a função CORRIGIDA do repositório para ver se treinou hoje
       final treinoHoje = await _repository.verificarTreinoConcluidoHoje(
         widget.usuarioId,
       );
 
-      // Pega o total absoluto de treinos para a barra de nível
       final treinosRealizados = await Supabase.instance.client
           .from('treinos_realizados')
           .select('id')
           .eq('usuario_id', widget.usuarioId);
 
+      // BUSCA O PLANO SALVO NO BANCO E VERIFICA A VALIDADE (MEIA NOITE)
+      final plano = await _repository.buscarPlanoAtivo(widget.usuarioId);
+      final hoje = DateTime.now().toIso8601String().split('T')[0];
+
+      bool expirado = true;
+      if (plano != null) {
+        final dataPlano = plano['data_registro']?.toString() ?? '';
+        if (dataPlano == hoje) {
+          expirado = false;
+          // RESTAURA A MEMÓRIA DO APP DIRETO DO BANCO! Se fechar o app, não perde o treino.
+          if (plano['dados_ia'] != null) {
+            AppCache.planoAtual = plano['dados_ia'];
+          }
+        }
+      }
+
       if (mounted) {
         setState(() {
           _usuarioData = user;
+          _planoData = plano;
           _treinoConcluidoHoje = treinoHoje;
           _totaisConsumidos = totaisDieta;
           _totalTreinosConcluidos = treinosRealizados.length;
+          _planoExpirado = expirado;
           _isLoading = false;
         });
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro ao carregar dados: $e')));
-        setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // FUNÇÃO QUE RODA QUANDO O USUÁRIO CLICA EM "GERAR TREINO DE HOJE"
+  Future<void> _gerarNovoTreinoDiario() async {
+    setState(() => _isGeneratingDaily = true);
+
+    try {
+      final historico = await _repository.buscarHistoricoRecente(
+        widget.usuarioId,
+      );
+
+      // Manda a IA analisar o que o usuário fez nos últimos dias e criar um novo desafio
+      final novoPlanoIA = await NutricaoIAService.gerarPlanoCompleto(
+        peso: _usuarioData?['peso_kg'] ?? 75.0,
+        consomeCarne: true, // Ajuste conforme seu banco depois
+        objetivo: _usuarioData?['objetivo'] ?? 'Hipertrofia',
+        nivel: 'Intermediário', // Ajuste conforme perfil
+        lesaoLombar: false,
+        lesaoOmbro: false,
+        historicoRecente: historico,
+      );
+
+      if (novoPlanoIA != null) {
+        await _repository.gravarPlanoDiario(
+          usuarioId: widget.usuarioId,
+          dadosIA: novoPlanoIA,
+        );
+        AppCache.planoAtual = novoPlanoIA;
       }
+
+      _carregarDashboard(); // Recarrega a tela com o plano de hoje
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erro ao gerar plano: $e')));
+    } finally {
+      setState(() => _isGeneratingDaily = false);
     }
   }
 
@@ -281,6 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 20),
 
         // --- CARD DE TREINO DO DIA ---
+        // --- CARD DE TREINO DO DIA ---
         Container(
           decoration: BoxDecoration(
             color: _treinoConcluidoHoje
@@ -297,20 +349,23 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.transparent,
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: _treinoConcluidoHoje
-                  ? null // Se já concluiu, trava o botão!
-                  : () async {
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => DetalhesTreinoScreen(
-                            dadosPlano: planoCache ?? {},
-                            usuarioId: widget.usuarioId,
-                          ),
-                        ),
-                      );
-                      _carregarDashboard(); // Atualiza a Home ao voltar da tela de treino!
-                    },
+              // SE O PLANO ESTIVER EXPIRADO, O CLIQUE GERA O PLANO DE HOJE!
+              onTap: _planoExpirado
+                  ? _gerarNovoTreinoDiario
+                  : (_treinoConcluidoHoje
+                        ? null
+                        : () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => DetalhesTreinoScreen(
+                                  dadosPlano: AppCache.planoAtual ?? {},
+                                  usuarioId: widget.usuarioId,
+                                ),
+                              ),
+                            );
+                            _carregarDashboard();
+                          }),
               child: Padding(
                 padding: const EdgeInsets.all(20.0),
                 child: Row(
@@ -318,17 +373,32 @@ class _HomeScreenState extends State<HomeScreen> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: _treinoConcluidoHoje
-                            ? Colors.greenAccent.withOpacity(0.2)
-                            : Colors.greenAccent.withOpacity(0.1),
+                        color: _planoExpirado
+                            ? Colors.orangeAccent.withOpacity(0.2)
+                            : (_treinoConcluidoHoje
+                                  ? Colors.greenAccent.withOpacity(0.2)
+                                  : Colors.greenAccent.withOpacity(0.1)),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        _treinoConcluidoHoje
-                            ? Icons.check_circle
-                            : Icons.fitness_center,
-                        color: Colors.greenAccent,
-                      ),
+                      child: _isGeneratingDaily
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.orangeAccent,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Icon(
+                              _planoExpirado
+                                  ? Icons.auto_awesome
+                                  : (_treinoConcluidoHoje
+                                        ? Icons.check_circle
+                                        : Icons.fitness_center),
+                              color: _planoExpirado
+                                  ? Colors.orangeAccent
+                                  : Colors.greenAccent,
+                            ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -336,22 +406,28 @@ class _HomeScreenState extends State<HomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _treinoConcluidoHoje
-                                ? 'Treino Concluído Hoje! 🏆'
-                                : nomeTreinoIA,
+                            _planoExpirado
+                                ? 'Gerar Treino de Hoje'
+                                : (_treinoConcluidoHoje
+                                      ? 'Treino Concluído Hoje! 🏆'
+                                      : nomeTreinoIA),
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: _treinoConcluidoHoje
-                                  ? Colors.greenAccent
-                                  : Colors.white,
+                              color: _planoExpirado
+                                  ? Colors.orangeAccent
+                                  : (_treinoConcluidoHoje
+                                        ? Colors.greenAccent
+                                        : Colors.white),
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _treinoConcluidoHoje
-                                ? 'Meta diária batida. Bom descanso!'
-                                : 'Toque para ver o guia de exercícios',
+                            _planoExpirado
+                                ? 'Um novo dia! Toque para a IA avaliar seu progresso e montar o treino.'
+                                : (_treinoConcluidoHoje
+                                      ? 'Meta diária batida. Bom descanso!'
+                                      : 'Toque para ver o guia de exercícios'),
                             style: TextStyle(
                               color: Colors.grey.shade400,
                               fontSize: 13,
@@ -360,7 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
-                    if (!_treinoConcluidoHoje)
+                    if (!_treinoConcluidoHoje && !_isGeneratingDaily)
                       const Icon(Icons.chevron_right, color: Colors.grey),
                   ],
                 ),

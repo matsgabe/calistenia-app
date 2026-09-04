@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'usuario_repository.dart';
 import 'nutricao_ia_service.dart';
 import 'app_cache.dart';
 import 'home_screen.dart';
@@ -95,7 +95,30 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
         nivel: _nivelSelecionado!,
         lesaoLombar: _dorLombar,
         lesaoOmbro: _dorOmbros,
+        historicoRecente: [], // Primeiro dia, não tem histórico ainda
       );
+
+      if (planoIA != null) {
+        // Salva o Plano Diário no Banco de Dados permanentemente!
+        final repository = UsuarioRepository();
+        await repository.gravarPlanoDiario(
+          usuarioId: widget.usuarioId,
+          dadosIA: planoIA,
+        );
+
+        // Alimenta a Memória RAM
+        AppCache.planoAtual = planoIA;
+      }
+
+      if (mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(usuarioId: widget.usuarioId),
+          ),
+          (route) => false,
+        );
+      }
 
       // ==========================================
       // 3. MONTAGEM DO CACHE COM RETORNO DA IA

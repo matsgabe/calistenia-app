@@ -136,24 +136,28 @@ class UsuarioRepository {
     });
   }
 
-  Future<void> gravarPlanoAlimentar({
+  // Grava o plano diário completo (Dieta + Treino IA)
+  Future<void> gravarPlanoDiario({
     required int usuarioId,
-    required int calorias,
-    required int proteinas,
-    required int carboidratos,
-    required int gorduras,
+    required Map<String, dynamic> dadosIA,
   }) async {
+    final hoje = DateTime.now().toIso8601String().split('T')[0];
+
+    // Desativa planos de dias anteriores
     await _supabase
         .from('plano_alimentar')
         .update({'ativo': false})
         .eq('usuario_id', usuarioId);
 
+    // Insere o novo plano ativo para HOJE
     await _supabase.from('plano_alimentar').insert({
       'usuario_id': usuarioId,
-      'calorias_alvo': calorias,
-      'proteinas_g_alvo': proteinas,
-      'carboidratos_g_alvo': carboidratos,
-      'gorduras_g_alvo': gorduras,
+      'calorias_alvo': dadosIA['calorias_alvo'] ?? 2000,
+      'proteinas_g_alvo': dadosIA['proteinas_g_alvo'] ?? 150,
+      'carboidratos_g_alvo': dadosIA['carboidratos_g_alvo'] ?? 200,
+      'gorduras_g_alvo': dadosIA['gorduras_g_alvo'] ?? 60,
+      'dados_ia': dadosIA, // SALVA O TREINO COMPLETO AQUI!
+      'data_registro': hoje,
       'ativo': true,
     });
   }
