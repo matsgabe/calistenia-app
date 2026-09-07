@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'usuario_repository.dart';
 import 'anamnese_screen.dart';
 
 class CadastroScreen extends StatefulWidget {
@@ -14,7 +14,9 @@ class _CadastroScreenState extends State<CadastroScreen> {
   final _nomeController = TextEditingController();
   final _usernameController = TextEditingController();
   final _senhaController = TextEditingController();
+
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   Future<void> _cadastrar() async {
     final nome = _nomeController.text.trim();
@@ -31,63 +33,38 @@ class _CadastroScreenState extends State<CadastroScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final emailFormatado = username.contains('@')
-          ? username
-          : '$username@calistenia.app';
+      final repository = UsuarioRepository();
 
-      // 1. Registra no Supabase Auth
-      final AuthResponse res = await Supabase.instance.client.auth.signUp(
-        email: emailFormatado,
-        password: senha,
-      );
-
-      final user = res.user;
-      if (user != null) {
-        // 2. Salva na tabela 'usuarios' preenchendo todos os "Not Null" provisoriamente
-        final usuarioData = await Supabase.instance.client
-            .from('usuarios')
-            .insert({
-              'nome': nome,
-              'username': username,
-              'genero': 'M', // Valor provisório válido
-              'data_nascimento':
-                  '2000-01-01', // Valor provisório para evitar erro Not Null
-              'altura_cm': 0, // Valor provisório para evitar erro Not Null
-            })
-            .select('id')
-            .single();
-
-        final int usuarioId = usuarioData['id'];
-
-        // 3. Redireciona para a tela de Anamnese
+      bool existe = await repository.verificarUsernameExiste(username);
+      if (existe) {
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AnamneseScreen(usuarioId: usuarioId),
-            ),
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Este username já está em uso.')),
           );
         }
+        setState(() => _isLoading = false);
+        return;
       }
-    } on AuthException catch (e) {
-      // Captura erros específicos de Login/Cadastro (ex: senha curta, email desabilitado)
+
+      // Cadastra na tabela usuarios e obtém o ID gerado
+      final int novoId = await repository.cadastrarUsuario(
+        nome: nome,
+        username: username,
+        senha: senha,
+      );
+
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro de Autenticação: ${e.message}')),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AnamneseScreen(usuarioId: novoId),
+          ),
         );
       }
-    } on PostgrestException catch (e) {
-      // Captura erros específicos do Banco de Dados (ex: RLS, coluna faltando)
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Erro no Banco: ${e.message}')));
-      }
     } catch (e) {
-      // Qualquer outro erro
       if (mounted) {
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro inesperado: $e')));
+            .showSnackBar(SnackBar(content: Text('Erro no cadastro: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -99,99 +76,119 @@ class _CadastroScreenState extends State<CadastroScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Criar Conta'),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.fitness_center,
-              color: Colors.greenAccent,
-              size: 64,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Calistenia IA',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.person_add, color: Colors.greenAccent, size: 64),
+              const SizedBox(height: 16),
+              const Text(
+                'Criar Conta',
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
-            ),
-            const SizedBox(height: 40),
-
-            _buildTextField(
-              controller: _nomeController,
-              hint: 'Nome completo',
-              icon: Icons.badge,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _usernameController,
-              hint: 'Username',
-              icon: Icons.person,
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _senhaController,
-              hint: 'Senha',
-              icon: Icons.lock,
-              obscure: true,
-            ),
-
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _isLoading ? null : _cadastrar,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.greenAccent,
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
+              const SizedBox(height: 8),
+              const Text(
+                'Junte-se à Calistenia IA e comece sua evolução.',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 40),
+              TextField(
+                controller: _nomeController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Nome Completo',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey.shade900,
+                  prefixIcon: const Icon(Icons.badge, color: Colors.grey),
+                  border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
                   ),
                 ),
-                child: _isLoading
-                    ? const CircularProgressIndicator(color: Colors.black)
-                    : const Text(
-                        'CADASTRAR E CONTINUAR',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    bool obscure = false,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscure,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: Colors.grey),
-        filled: true,
-        fillColor: Colors.grey.shade900,
-        prefixIcon: Icon(icon, color: Colors.grey),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+              const SizedBox(height: 16),
+              TextField(
+                controller: _usernameController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Username (ex: matsgabe)',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey.shade900,
+                  prefixIcon: const Icon(Icons.person, color: Colors.grey),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _senhaController,
+                obscureText: _obscurePassword,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Senha',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.grey.shade900,
+                  prefixIcon: const Icon(Icons.lock, color: Colors.grey),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _cadastrar,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.black)
+                      : const Text(
+                          'CADASTRAR',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'home_screen.dart';
 import 'cadastro_screen.dart';
+import 'usuario_repository.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -14,60 +15,187 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _senhaController = TextEditingController();
+
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   Future<void> _entrar() async {
     final username = _usernameController.text.trim();
     final senha = _senhaController.text.trim();
 
-    if (username.isEmpty || senha.isEmpty) return;
+    if (username.isEmpty || senha.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Preencha todos os campos.')),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
     try {
-      // Truque: Formata o username como email para o Supabase Auth aceitar sem reclamar
-      final emailFormatado = username.contains('@')
-          ? username
-          : '$username@calistenia.app';
+      final repository = UsuarioRepository();
 
-      // 1. Autentica no Supabase Auth (Aqui usamos o email fantasma)
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: emailFormatado,
-        password: senha,
-      );
+      // Valida diretamente na tabela 'usuarios'
+      final usuario = await repository.fazerLogin(username, senha);
 
-      // 2. Busca o ID do usuário na tabela pública (AQUI ESTAVA O ERRO!)
-      // Mudamos de .eq('email', ...) para .eq('username', ...)
-      final userResponse = await Supabase.instance.client
-          .from('usuarios')
-          .select('id')
-          .eq('username', username)
-          .single();
+      if (usuario != null) {
+        final int usuarioId = usuario['id'];
 
-      final int usuarioId = userResponse['id'];
-
-      // 3. Redireciona para a Home
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeScreen(usuarioId: usuarioId),
-          ),
-        );
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => HomeScreen(usuarioId: usuarioId),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Usuário ou senha inválidos.')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Erro ao fazer login. Verifique seu usuário e senha.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro ao fazer login: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _mostrarDialogEsqueciSenha() {
+    final userResetController = TextEditingController();
+    final novaSenhaController = TextEditingController();
+    bool obscureNewPass = true;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: Colors.grey.shade900,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                'Recuperar Senha 🔑',
+                style: TextStyle(color: Colors.white, fontSize: 18),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Informe seu Username cadastrado e defina uma nova senha:',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: userResetController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Seu Username',
+                      hintStyle: const TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: Colors.black,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: novaSenhaController,
+                    obscureText: obscureNewPass,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Nova Senha',
+                      hintStyle: const TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: Colors.black,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          obscureNewPass
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setStateDialog(() {
+                            obscureNewPass = !obscureNewPass;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent,
+                  ),
+                  onPressed: () async {
+                    final u = userResetController.text.trim();
+                    final novaSenha = novaSenhaController.text.trim();
+
+                    if (u.isEmpty || novaSenha.isEmpty) return;
+
+                    try {
+                      // Atualiza diretamente a senha na tabela 'usuarios'
+                      await Supabase.instance.client
+                          .from('usuarios')
+                          .update({'senha': novaSenha})
+                          .eq('username', u);
+
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Senha redefinida com sucesso! Faça login.',
+                            ),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Erro ao redefinir: $e')),
+                        );
+                      }
+                    }
+                  },
+                  child: const Text(
+                    'Salvar',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -100,8 +228,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               const SizedBox(height: 40),
-
-              // CAMPO USERNAME
               TextField(
                 controller: _usernameController,
                 style: const TextStyle(color: Colors.white),
@@ -118,11 +244,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // CAMPO SENHA
               TextField(
                 controller: _senhaController,
-                obscureText: true,
+                obscureText: _obscurePassword,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Senha',
@@ -130,15 +254,37 @@ class _LoginScreenState extends State<LoginScreen> {
                   filled: true,
                   fillColor: Colors.grey.shade900,
                   prefixIcon: const Icon(Icons.lock, color: Colors.grey),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      color: Colors.grey,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
-
-              // BOTÃO ENTRAR
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _mostrarDialogEsqueciSenha,
+                  child: const Text(
+                    'Esqueci minha senha',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -163,8 +309,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // BOTÃO DE CADASTRO
               TextButton(
                 onPressed: () {
                   Navigator.push(
