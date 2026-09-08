@@ -25,7 +25,7 @@ class UsuarioRepository {
     return response;
   }
 
-  // VERIFICA TREINO: Agora aponta para a tabela correta 'treinos_realizados'
+  // VERIFICA TREINO: Aponta para a tabela correta 'treinos_realizados'
   Future<bool> verificarTreinoConcluidoHoje(int usuarioId) async {
     try {
       final hoje = DateTime.now().toIso8601String().split('T')[0];
@@ -42,7 +42,7 @@ class UsuarioRepository {
     }
   }
 
-  // REGISTRA TREINO: Agora aponta para a tabela 'treinos_realizados' ao invés de historico_fisico
+  // REGISTRA TREINO: Aponta para a tabela 'treinos_realizados'
   Future<void> registrarTreinoConcluido(int usuarioId) async {
     final agora = DateTime.now().toIso8601String();
 
