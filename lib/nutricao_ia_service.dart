@@ -39,9 +39,9 @@ class NutricaoIAService {
     final conteudo = [Content.text(prompt)];
 
     try {
-      return await _chamarAPI('gemini-1.5-flash', conteudo);
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     } catch (e) {
-      debugPrint('Fallback ativado: gemini-1.5-flash falhou ($e).');
+      debugPrint('Fallback ativado: gemini-3.5-flash-lite falhou ($e).');
       return null;
     }
   }
@@ -65,9 +65,9 @@ class NutricaoIAService {
     ];
 
     try {
-      return await _chamarAPI('gemini-1.5-flash', conteudo);
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     } catch (e) {
-      debugPrint('Fallback ativado: gemini-1.5-flash falhou ($e).');
+      debugPrint('Fallback ativado: gemini-3.5-flash-lite falhou ($e).');
       return null;
     }
   }
@@ -163,9 +163,9 @@ class NutricaoIAService {
     final conteudo = [Content.text(prompt)];
 
     try {
-      return await _chamarAPI('gemini-1.5-flash', conteudo);
+      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
     } catch (e) {
-      debugPrint('Fallback ativado: gemini-1.5-flash falhou ($e).');
+      debugPrint('Fallback ativado: gemini-3.5-flash-lite falhou ($e).');
       return null;
     }
   }
