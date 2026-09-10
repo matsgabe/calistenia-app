@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 
 import 'dieta_repository.dart';
 import 'nutricao_ia_service.dart';
+import 'app_cache.dart';
 
 class DietaScreen extends StatefulWidget {
   final int usuarioId;
@@ -147,7 +148,6 @@ class _DietaScreenState extends State<DietaScreen> {
     }
   }
 
-  // --- NOVA FUNÇÃO: EXCLUIR REFEIÇÃO ---
   Future<void> _excluirRefeicao(int id) async {
     try {
       await _dietaRepository.excluirRefeicao(id);
@@ -161,7 +161,7 @@ class _DietaScreenState extends State<DietaScreen> {
         );
       }
 
-      _carregarRefeicoes(); // Atualiza a lista na tela
+      _carregarRefeicoes();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -178,9 +178,14 @@ class _DietaScreenState extends State<DietaScreen> {
       );
     }
 
+    // Busca as sugestões salvas no cache que vieram da Home
+    final planoCache = AppCache.planoAtual;
+    final List<dynamic> sugestoes = planoCache?['sugestoes'] ?? [];
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
+        // --- DIRETRIZES DA IA ---
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -218,6 +223,82 @@ class _DietaScreenState extends State<DietaScreen> {
         ),
         const SizedBox(height: 24),
 
+        // --- CARDÁPIO SUGERIDO (NOVO) ---
+        const Text(
+          'Cardápio Sugerido (Hoje)',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 12),
+        if (sugestoes.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Gere seu treino e plano diário na aba "Home" para ver as sugestões de refeições aqui.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+          )
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: sugestoes.length,
+            itemBuilder: (context, index) {
+              final sug = sugestoes[index];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.greenAccent.withOpacity(0.1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          sug['refeicao'] ?? 'Refeição',
+                          style: const TextStyle(
+                            color: Colors.greenAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        Text(
+                          '${sug['calorias'] ?? 0} kcal',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      sug['itens'] ?? '',
+                      style: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 13,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        const SizedBox(height: 24),
+
+        // --- REGISTRAR CONSUMO MANUAL/FOTO ---
         const Text(
           'Registrar Consumo Diário',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -272,6 +353,7 @@ class _DietaScreenState extends State<DietaScreen> {
         ),
         const SizedBox(height: 24),
 
+        // --- LISTA DE REFEIÇÕES DO DIA ---
         const Text(
           'Refeições de Hoje',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -322,7 +404,6 @@ class _DietaScreenState extends State<DietaScreen> {
                           fontSize: 12,
                         ),
                       ),
-                      // --- NOVO: BOTÃO DE EXCLUIR NA LATERAL DIREITA ---
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -342,7 +423,6 @@ class _DietaScreenState extends State<DietaScreen> {
                             ),
                             tooltip: 'Excluir refeição',
                             onPressed: () {
-                              // Exclui a refeição usando o ID dela salvo no banco
                               if (ref['id'] != null) {
                                 _excluirRefeicao(ref['id']);
                               }

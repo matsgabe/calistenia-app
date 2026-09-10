@@ -39,12 +39,10 @@ class NutricaoIAService {
     final conteudo = [Content.text(prompt)];
 
     try {
-      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+      return await _chamarAPI('gemini-1.5-flash', conteudo);
     } catch (e) {
-      debugPrint(
-        'Fallback ativado: gemini-3.5-flash-lite falhou ($e). Tentando gemini-3.5-flash-lite...',
-      );
-      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+      debugPrint('Fallback ativado: gemini-1.5-flash falhou ($e).');
+      return null;
     }
   }
 
@@ -67,16 +65,14 @@ class NutricaoIAService {
     ];
 
     try {
-      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+      return await _chamarAPI('gemini-1.5-flash', conteudo);
     } catch (e) {
-      debugPrint(
-        'Fallback ativado: 3.5-flash-lite falhou ($e). Tentando gemini-3.5-flash-lite...',
-      );
-      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+      debugPrint('Fallback ativado: gemini-1.5-flash falhou ($e).');
+      return null;
     }
   }
 
-  // --- NOVA FUNÇÃO: GERA DIETA E TREINO COM CÁLCULO EXATO ---
+  // --- GERA DIETA E TREINO COM CÁLCULO EXATO ---
   static Future<Map<String, dynamic>?> gerarPlanoCompleto({
     required double peso,
     required bool consomeCarne,
@@ -120,13 +116,36 @@ class NutricaoIAService {
     REGRA DE EVOLUÇÃO: Analise o Histórico Recente. Se o atleta treinou nos dias anteriores, aplique SOBRECARGA PROGRESSIVA no treino de hoje (adicione repetições, troque a variação para uma mais difícil ou mude o grupo muscular para permitir descanso). 
     Os exercícios DEVEM utilizar APENAS o peso do próprio corpo.
     
+    IMPORTANTE PARA A DIETA: Distribua a meta total de calorias e macronutrientes do dia ($kcalAlvo kcal) entre as 4 refeições obrigatórias (Café da Manhã, Almoço, Lanche da Tarde e Jantar). A soma das calorias dessas 4 refeições DEVE ser aproximadamente igual à meta diária calculada. Os alimentos sugeridos devem bater a meta de proteínas ($protAlvo g).
+
     Retorne OBRIGATORIAMENTE um JSON com as chaves exatas (use os cálculos exatos fornecidos abaixo):
     {
       "calorias_alvo": $kcalAlvo,
       "proteinas_g_alvo": $protAlvo,
       "carboidratos_g_alvo": $carbAlvo,
       "gorduras_g_alvo": $gordAlvo,
-      "sugestoes": [{"refeicao": "Café", "itens": "Sugira alimentos batendo as metas", "calorias": 300}],
+      "sugestoes": [
+        {
+          "refeicao": "Café da Manhã", 
+          "itens": "Alimentos reais e quantidades exatas", 
+          "calorias": "Substitua pelo valor calculado (ex: 20% das calorias totais)"
+        },
+        {
+          "refeicao": "Almoço", 
+          "itens": "Alimentos reais e quantidades exatas", 
+          "calorias": "Substitua pelo valor calculado (ex: 35% das calorias totais)"
+        },
+        {
+          "refeicao": "Lanche da Tarde", 
+          "itens": "Alimentos reais e quantidades exatas", 
+          "calorias": "Substitua pelo valor calculado (ex: 15% das calorias totais)"
+        },
+        {
+          "refeicao": "Jantar", 
+          "itens": "Alimentos reais e quantidades exatas", 
+          "calorias": "Substitua pelo valor calculado (ex: 30% das calorias totais)"
+        }
+      ],
       "treino_sugerido_nome": "Treino de Calistenia ($nivel)",
       "resumo_analise": "Análise da evolução e foco de hoje...",
       "treino_descricao": "Descrição do foco de hoje.",
@@ -144,12 +163,10 @@ class NutricaoIAService {
     final conteudo = [Content.text(prompt)];
 
     try {
-      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+      return await _chamarAPI('gemini-1.5-flash', conteudo);
     } catch (e) {
-      debugPrint(
-        'Fallback ativado: gemini-pro falhou ($e). Tentando 3.5-flash-lite...',
-      );
-      return await _chamarAPI('gemini-3.5-flash-lite', conteudo);
+      debugPrint('Fallback ativado: gemini-1.5-flash falhou ($e).');
+      return null;
     }
   }
 }

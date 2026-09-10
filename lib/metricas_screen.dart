@@ -51,15 +51,6 @@ class _MetricasScreenState extends State<MetricasScreen> {
           peso: peso,
           altura: usuarioData?['altura_cm'] ?? 170.0,
         );
-
-        await repository.gravarPlanoAlimentar(
-          usuarioId: widget.usuarioId,
-          calorias: plano.caloriasAlvo,
-          proteinas: plano.proteinasG,
-          carboidratos: plano.carboidratosG,
-          gorduras: plano.gordurasG,
-        );
-
         if (mounted) {
           Navigator.pushReplacement(
             context,
