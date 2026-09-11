@@ -273,7 +273,13 @@ class _DietaScreenState extends State<DietaScreen> {
                           ),
                         ),
                         Text(
-                          '${sug['calorias'] ?? 0} kcal',
+                          "${sug['calorias'] ?? 0}"
+                                  .replaceAll(
+                                    RegExp(r'\s*kcal', caseSensitive: false),
+                                    '',
+                                  )
+                                  .trim() +
+                              ' kcal',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 13,
@@ -408,7 +414,13 @@ class _DietaScreenState extends State<DietaScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            '${ref['calorias']} kcal',
+                            "${ref['calorias'] ?? 0}"
+                                    .replaceAll(
+                                      RegExp(r'\s*kcal', caseSensitive: false),
+                                      '',
+                                    )
+                                    .trim() +
+                                ' kcal',
                             style: const TextStyle(
                               color: Colors.greenAccent,
                               fontWeight: FontWeight.bold,
