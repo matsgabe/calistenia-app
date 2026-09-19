@@ -1,10 +1,18 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UsuarioRepository {
   final _supabase = Supabase.instance.client;
 
-  // Busca os dados do usuário logado
+  // --- FUNÇÃO DE CRIPTOGRAFIA ---
+  String _gerarHashSenha(String senha) {
+    final bytes = utf8.encode(senha);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
   Future<Map<String, dynamic>?> buscarUsuario(int usuarioId) async {
     final response = await _supabase
         .from('usuarios')
@@ -14,7 +22,6 @@ class UsuarioRepository {
     return response;
   }
 
-  // Busca o plano ativo do usuário
   Future<Map<String, dynamic>?> buscarPlanoAtivo(int usuarioId) async {
     final response = await _supabase
         .from('plano_alimentar')
@@ -25,7 +32,6 @@ class UsuarioRepository {
     return response;
   }
 
-  // VERIFICA TREINO: Aponta para a tabela correta 'treinos_realizados'
   Future<bool> verificarTreinoConcluidoHoje(int usuarioId) async {
     try {
       final hoje = DateTime.now().toIso8601String().split('T')[0];
@@ -42,7 +48,6 @@ class UsuarioRepository {
     }
   }
 
-  // REGISTRA TREINO: Aponta para a tabela 'treinos_realizados'
   Future<void> registrarTreinoConcluido(int usuarioId) async {
     final agora = DateTime.now().toIso8601String();
 
@@ -70,15 +75,14 @@ class UsuarioRepository {
     }
   }
 
-  Future<Map<String, dynamic>?> fazerLogin(
-    String username,
-    String senha,
-  ) async {
+  Future<Map<String, dynamic>?> fazerLogin(String username, String senha) async {
+    final senhaCriptografada = _gerarHashSenha(senha);
+
     final response = await _supabase
         .from('usuarios')
         .select()
         .eq('username', username)
-        .eq('senha', senha)
+        .eq('senha', senhaCriptografada) // Compara o hash
         .maybeSingle();
     return response;
   }
@@ -100,17 +104,17 @@ class UsuarioRepository {
     DateTime? dataNascimento,
     double? alturaCm,
   }) async {
+    final senhaCriptografada = _gerarHashSenha(senha);
+
     final Map<String, dynamic> dadosInsercao = {
       'nome': nome,
       'username': username,
-      'senha': senha,
+      'senha': senhaCriptografada, // Salva o hash
     };
 
     if (genero != null) dadosInsercao['genero'] = genero;
     if (dataNascimento != null) {
-      dadosInsercao['data_nascimento'] = dataNascimento.toIso8601String().split(
-        'T',
-      )[0];
+      dadosInsercao['data_nascimento'] = dataNascimento.toIso8601String().split('T')[0];
     }
     if (alturaCm != null) dadosInsercao['altura_cm'] = alturaCm;
 
@@ -121,6 +125,16 @@ class UsuarioRepository {
         .single();
 
     return response['id'] as int;
+  }
+
+  // --- MÉTODO FALTANTE ADICIONADO AQUI ---
+  Future<void> redefinirSenha(String username, String novaSenha) async {
+    final senhaCriptografada = _gerarHashSenha(novaSenha);
+
+    await _supabase
+        .from('usuarios')
+        .update({'senha': senhaCriptografada})
+        .eq('username', username);
   }
 
   Future<void> registrarMetricas({
@@ -136,27 +150,24 @@ class UsuarioRepository {
     });
   }
 
-  // Grava o plano diário completo (Dieta + Treino IA)
   Future<void> gravarPlanoDiario({
     required int usuarioId,
     required Map<String, dynamic> dadosIA,
   }) async {
     final hoje = DateTime.now().toIso8601String().split('T')[0];
 
-    // Desativa planos de dias anteriores
     await _supabase
         .from('plano_alimentar')
         .update({'ativo': false})
         .eq('usuario_id', usuarioId);
 
-    // Insere o novo plano ativo para HOJE
     await _supabase.from('plano_alimentar').insert({
       'usuario_id': usuarioId,
       'calorias_alvo': dadosIA['calorias_alvo'] ?? 2000,
       'proteinas_g_alvo': dadosIA['proteinas_g_alvo'] ?? 150,
       'carboidratos_g_alvo': dadosIA['carboidratos_g_alvo'] ?? 200,
       'gorduras_g_alvo': dadosIA['gorduras_g_alvo'] ?? 60,
-      'dados_ia': dadosIA, // SALVA O TREINO COMPLETO AQUI!
+      'dados_ia': dadosIA,
       'data_registro': hoje,
       'ativo': true,
     });

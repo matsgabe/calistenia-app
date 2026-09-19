@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'usuario_repository.dart';
 import 'home_screen.dart';
 import 'cadastro_screen.dart';
-import 'usuario_repository.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,15 +13,16 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _senhaController = TextEditingController();
+  final _usuarioRepository = UsuarioRepository();
 
   bool _isLoading = false;
-  bool _obscurePassword = true;
+  bool _ocultarSenha = true;
 
   Future<void> _entrar() async {
-    final username = _usernameController.text.trim();
-    final senha = _senhaController.text.trim();
+    final u = _usernameController.text.trim();
+    final s = _senhaController.text.trim();
 
-    if (username.isEmpty || senha.isEmpty) {
+    if (u.isEmpty || s.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Preencha todos os campos.')),
       );
@@ -33,33 +32,31 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final repository = UsuarioRepository();
-
-      // Valida diretamente na tabela 'usuarios'
-      final usuario = await repository.fazerLogin(username, senha);
-
-      if (usuario != null) {
-        final int usuarioId = usuario['id'];
-
+      final user = await _usuarioRepository.fazerLogin(u, s);
+      if (user != null) {
         if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => HomeScreen(usuarioId: usuarioId),
+              builder: (_) => HomeScreen(usuarioId: user['id']),
             ),
           );
         }
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Usuário ou senha inválidos.')),
+            const SnackBar(
+              content: Text('Usuário ou senha incorretos.'),
+              backgroundColor: Colors.redAccent,
+            ),
           );
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro ao fazer login: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro no login: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -77,14 +74,9 @@ class _LoginScreenState extends State<LoginScreen> {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              backgroundColor: Colors.grey.shade900,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              title: const Text(
-                'Recuperar Senha 🔑',
-                style: TextStyle(color: Colors.white, fontSize: 18),
-              ),
+              backgroundColor: const Color(0xFF1E1E1E), // Fundo CyberFit
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Recuperar Senha 🔑', style: TextStyle(color: Colors.greenAccent, fontSize: 18)),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -95,37 +87,21 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: userResetController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       hintText: 'Seu Username',
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.black,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
+                      prefixIcon: Icon(Icons.person, color: Colors.grey),
                     ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: novaSenhaController,
                     obscureText: obscureNewPass,
-                    style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       hintText: 'Nova Senha',
-                      hintStyle: const TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.black,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
+                      prefixIcon: const Icon(Icons.lock, color: Colors.grey),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          obscureNewPass
-                              ? Icons.visibility_off
-                              : Icons.visibility,
+                          obscureNewPass ? Icons.visibility_off : Icons.visibility,
                           color: Colors.grey,
                         ),
                         onPressed: () {
@@ -141,15 +117,9 @@ class _LoginScreenState extends State<LoginScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text(
-                    'Cancelar',
-                    style: TextStyle(color: Colors.grey),
-                  ),
+                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
                 ),
                 ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent,
-                  ),
                   onPressed: () async {
                     final u = userResetController.text.trim();
                     final novaSenha = novaSenhaController.text.trim();
@@ -157,19 +127,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (u.isEmpty || novaSenha.isEmpty) return;
 
                     try {
-                      // Atualiza diretamente a senha na tabela 'usuarios'
-                      await Supabase.instance.client
-                          .from('usuarios')
-                          .update({'senha': novaSenha})
-                          .eq('username', u);
+                      await _usuarioRepository.redefinirSenha(u, novaSenha);
 
                       if (mounted) {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text(
-                              'Senha redefinida com sucesso! Faça login.',
-                            ),
+                            content: Text('Senha redefinida com sucesso! Faça login.'),
                             backgroundColor: Colors.green,
                           ),
                         );
@@ -182,13 +146,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       }
                     }
                   },
-                  child: const Text(
-                    'Salvar',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: const Text('Salvar'),
                 ),
               ],
             );
@@ -201,75 +159,45 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.fitness_center,
-                color: Colors.greenAccent,
-                size: 64,
-              ),
+              const Icon(Icons.fitness_center, color: Colors.greenAccent, size: 80),
               const SizedBox(height: 16),
               const Text(
-                'Calistenia IA',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+                'CalistenIA', 
+                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Sua jornada de força começa aqui.',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(color: Colors.grey, fontSize: 16),
               ),
               const SizedBox(height: 40),
+              
               TextField(
                 controller: _usernameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Username',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.grey.shade900,
-                  prefixIcon: const Icon(Icons.person, color: Colors.grey),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
+                  prefixIcon: Icon(Icons.person, color: Colors.grey),
                 ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _senhaController,
-                obscureText: _obscurePassword,
-                style: const TextStyle(color: Colors.white),
+                obscureText: _ocultarSenha,
                 decoration: InputDecoration(
                   hintText: 'Senha',
-                  hintStyle: const TextStyle(color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.grey.shade900,
                   prefixIcon: const Icon(Icons.lock, color: Colors.grey),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off
-                          : Icons.visibility,
+                      _ocultarSenha ? Icons.visibility_off : Icons.visibility,
                       color: Colors.grey,
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
+                    onPressed: () => setState(() => _ocultarSenha = !_ocultarSenha),
                   ),
                 ),
               ),
@@ -278,10 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: _mostrarDialogEsqueciSenha,
-                  child: const Text(
-                    'Esqueci minha senha',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
+                  child: const Text('Esqueci minha senha', style: TextStyle(color: Colors.grey, fontSize: 13)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -290,22 +215,9 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 50,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _entrar,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent,
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
                   child: _isLoading
                       ? const CircularProgressIndicator(color: Colors.black)
-                      : const Text(
-                          'ENTRAR',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                      : const Text('ENTRAR'),
                 ),
               ),
               const SizedBox(height: 24),
@@ -313,14 +225,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const CadastroScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const CadastroScreen()),
                   );
                 },
                 child: const Text(
                   'Não tem uma conta? Cadastre-se',
-                  style: TextStyle(color: Colors.greenAccent, fontSize: 14),
+                  style: TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
