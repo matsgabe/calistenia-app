@@ -1,17 +1,8 @@
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class UsuarioRepository {
   final _supabase = Supabase.instance.client;
-
-  // --- FUNÇÃO DE CRIPTOGRAFIA ---
-  String _gerarHashSenha(String senha) {
-    final bytes = utf8.encode(senha);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
-  }
 
   Future<Map<String, dynamic>?> buscarUsuario(int usuarioId) async {
     final response = await _supabase
@@ -40,7 +31,6 @@ class UsuarioRepository {
           .select('id')
           .eq('usuario_id', usuarioId)
           .gte('data_realizacao', '$hoje 00:00:00');
-
       return response.isNotEmpty;
     } catch (e) {
       debugPrint('Erro ao verificar treino hoje: $e');
@@ -50,11 +40,10 @@ class UsuarioRepository {
 
   Future<void> registrarTreinoConcluido(int usuarioId) async {
     final agora = DateTime.now().toIso8601String();
-
     await _supabase.from('treinos_realizados').insert({
       'usuario_id': usuarioId,
       'tipo_treino': 'Calistenia IA',
-      'duracao_segundos': 1800, // 30 minutos padrão
+      'duracao_segundos': 1800,
       'data_realizacao': agora,
     });
   }
@@ -75,18 +64,6 @@ class UsuarioRepository {
     }
   }
 
-  Future<Map<String, dynamic>?> fazerLogin(String username, String senha) async {
-    final senhaCriptografada = _gerarHashSenha(senha);
-
-    final response = await _supabase
-        .from('usuarios')
-        .select()
-        .eq('username', username)
-        .eq('senha', senhaCriptografada) // Compara o hash
-        .maybeSingle();
-    return response;
-  }
-
   Future<bool> verificarUsernameExiste(String username) async {
     final response = await _supabase
         .from('usuarios')
@@ -94,6 +71,34 @@ class UsuarioRepository {
         .eq('username', username)
         .maybeSingle();
     return response != null;
+  }
+
+  // --- MÉTODOS DE AUTENTICAÇÃO ATUALIZADOS (O "HACK" DO E-MAIL) ---
+
+  Future<Map<String, dynamic>?> fazerLogin(
+    String username,
+    String senha,
+  ) async {
+    try {
+      // 1. Faz o login no sistema blindado do Supabase Auth criando um e-mail falso
+      final emailFake = '$username@calistenia.app';
+      await _supabase.auth.signInWithPassword(
+        email: emailFake,
+        password: senha,
+      );
+
+      // 2. Se a senha estiver correta, busca os dados na nossa tabela pública
+      final response = await _supabase
+          .from('usuarios')
+          .select()
+          .eq('username', username)
+          .maybeSingle();
+
+      return response;
+    } catch (e) {
+      debugPrint('Erro no login oficial: $e');
+      return null; // Retorna nulo se a senha estiver errada
+    }
   }
 
   Future<int> cadastrarUsuario({
@@ -104,17 +109,22 @@ class UsuarioRepository {
     DateTime? dataNascimento,
     double? alturaCm,
   }) async {
-    final senhaCriptografada = _gerarHashSenha(senha);
+    // 1. Cria a credencial blindada no Supabase Auth
+    final emailFake = '$username@calistenia.app';
+    await _supabase.auth.signUp(email: emailFake, password: senha);
 
+    // 2. Salva os dados do perfil na nossa tabela 'usuarios'.
+    // NOTA: Não precisamos mais salvar a 'senha' na nossa tabela pública!
     final Map<String, dynamic> dadosInsercao = {
       'nome': nome,
       'username': username,
-      'senha': senhaCriptografada, // Salva o hash
     };
 
     if (genero != null) dadosInsercao['genero'] = genero;
     if (dataNascimento != null) {
-      dadosInsercao['data_nascimento'] = dataNascimento.toIso8601String().split('T')[0];
+      dadosInsercao['data_nascimento'] = dataNascimento.toIso8601String().split(
+        'T',
+      )[0];
     }
     if (alturaCm != null) dadosInsercao['altura_cm'] = alturaCm;
 
@@ -127,15 +137,13 @@ class UsuarioRepository {
     return response['id'] as int;
   }
 
-  // --- MÉTODO FALTANTE ADICIONADO AQUI ---
   Future<void> redefinirSenha(String username, String novaSenha) async {
-    final senhaCriptografada = _gerarHashSenha(novaSenha);
-
-    await _supabase
-        .from('usuarios')
-        .update({'senha': senhaCriptografada})
-        .eq('username', username);
+    throw Exception(
+      'No modo atual, a redefinição de senha deve ser feita diretamente no painel do Supabase pelo Administrador.',
+    );
   }
+
+  // --- FIM DOS MÉTODOS DE AUTENTICAÇÃO ---
 
   Future<void> registrarMetricas({
     required int usuarioId,
@@ -155,12 +163,10 @@ class UsuarioRepository {
     required Map<String, dynamic> dadosIA,
   }) async {
     final hoje = DateTime.now().toIso8601String().split('T')[0];
-
     await _supabase
         .from('plano_alimentar')
         .update({'ativo': false})
         .eq('usuario_id', usuarioId);
-
     await _supabase.from('plano_alimentar').insert({
       'usuario_id': usuarioId,
       'calorias_alvo': dadosIA['calorias_alvo'] ?? 2000,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'usuario_repository.dart';
 import 'anamnese_screen.dart';
@@ -7,10 +8,10 @@ class CadastroScreen extends StatefulWidget {
   const CadastroScreen({super.key});
 
   @override
-  State<CadastroScreen> createState() => _CadastroScreenState();
+  State createState() => _CadastroScreenState();
 }
 
-class _CadastroScreenState extends State<CadastroScreen> {
+class _CadastroScreenState extends State {
   final _nomeController = TextEditingController();
   final _usernameController = TextEditingController();
   final _senhaController = TextEditingController();
@@ -18,7 +19,40 @@ class _CadastroScreenState extends State<CadastroScreen> {
   bool _isLoading = false;
   bool _ocultarSenha = true;
 
-  Future<void> _cadastrar() async {
+  // Variáveis para o feedback visual dinâmico da senha
+  bool _temTamanho = false;
+  bool _temLetra = false;
+  bool _temNumero = false;
+  bool _temEspecial = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ouve tudo o que o usuário digita na senha em tempo real
+    _senhaController.addListener(() {
+      final senha = _senhaController.text;
+      setState(() {
+        _temTamanho = senha.length >= 8;
+        _temLetra = RegExp(r'[a-zA-Z]').hasMatch(senha);
+        _temNumero = RegExp(r'\d').hasMatch(senha);
+        _temEspecial = RegExp(r'[^a-zA-Z0-9]').hasMatch(senha);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _nomeController.dispose();
+    _usernameController.dispose();
+    _senhaController.dispose();
+    super.dispose();
+  }
+
+  bool _isSenhaTotalmenteValida() {
+    return _temTamanho && _temLetra && _temNumero && _temEspecial;
+  }
+
+  Future _cadastrar() async {
     final nome = _nomeController.text.trim();
     final username = _usernameController.text.trim();
     final senha = _senhaController.text.trim();
@@ -26,6 +60,18 @@ class _CadastroScreenState extends State<CadastroScreen> {
     if (nome.isEmpty || username.isEmpty || senha.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Preencha todos os campos.')),
+      );
+      return;
+    }
+
+    if (!_isSenhaTotalmenteValida()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'A senha não atende a todos os requisitos de segurança.',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
       );
       return;
     }
@@ -49,7 +95,6 @@ class _CadastroScreenState extends State<CadastroScreen> {
         return;
       }
 
-      // Cadastra na tabela usuarios e obtém o ID gerado (A senha já vai criptografada daqui!)
       final int novoId = await repository.cadastrarUsuario(
         nome: nome,
         username: username,
@@ -64,14 +109,61 @@ class _CadastroScreenState extends State<CadastroScreen> {
           ),
         );
       }
+    } on AuthException catch (e) {
+      // Captura erros ESPECÍFICOS do Supabase e traduz para o usuário
+      if (mounted) {
+        String mensagemErro = 'Erro de autenticação.';
+        if (e.message.contains('Password should be at least')) {
+          mensagemErro =
+              'A senha fornecida é considerada muito fraca pelo servidor.';
+        } else if (e.message.contains('User already registered')) {
+          mensagemErro = 'Este usuário já possui cadastro oficial no sistema.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(mensagemErro),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro no cadastro: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ocorreu um erro inesperado ao realizar o cadastro.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  // Componente visual para desenhar os requisitos da senha
+  Widget _buildRegraSenha(String texto, bool cumprida) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        children: [
+          Icon(
+            cumprida ? Icons.check_circle : Icons.circle_outlined,
+            color: cumprida ? Colors.greenAccent : Colors.grey.shade700,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            texto,
+            style: TextStyle(
+              color: cumprida ? Colors.white : Colors.grey.shade500,
+              fontSize: 12,
+              fontWeight: cumprida ? FontWeight.w500 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -109,14 +201,18 @@ class _CadastroScreenState extends State<CadastroScreen> {
               TextField(
                 controller: _usernameController,
                 decoration: const InputDecoration(
-                  hintText: 'Username (ex: username123)',
+                  hintText: 'Username (ex: matsgabe)',
                   prefixIcon: Icon(Icons.person, color: Colors.grey),
                 ),
               ),
               const SizedBox(height: 16),
+
               TextField(
                 controller: _senhaController,
                 obscureText: _ocultarSenha,
+                onChanged: (val) {
+                  // O listener no initState já faz o trabalho, mas garantimos a atualização visual aqui
+                },
                 decoration: InputDecoration(
                   hintText: 'Senha',
                   prefixIcon: const Icon(Icons.lock, color: Colors.grey),
@@ -133,8 +229,46 @@ class _CadastroScreenState extends State<CadastroScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 12),
 
+              // --- PAINEL DE REQUISITOS DA SENHA ---
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade900,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _isSenhaTotalmenteValida()
+                        ? Colors.greenAccent.withOpacity(0.5)
+                        : Colors.transparent,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'A senha deve conter:',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    _buildRegraSenha('No mínimo 8 caracteres', _temTamanho),
+                    _buildRegraSenha('Pelo menos 1 letra', _temLetra),
+                    _buildRegraSenha('Pelo menos 1 número', _temNumero),
+                    _buildRegraSenha(
+                      'Pelo menos 1 caractere especial (!@#\$&*)',
+                      _temEspecial,
+                    ),
+                  ],
+                ),
+              ),
+              // -------------------------------------
+
+              const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

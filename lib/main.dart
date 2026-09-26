@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:device_preview/device_preview.dart';
 
 import 'login_screen.dart';
 
@@ -15,7 +17,12 @@ Future<void> main() async {
     publishableKey: 'sb_publishable_PflsWSeJqaS-EhjmlAPCXw_hYWjj9HT',
   );
 
-  runApp(const MyApp());
+  runApp(
+    DevicePreview(
+      enabled: !kReleaseMode, // Só exibe o celular se estiver em ambiente de desenvolvimento
+      builder: (context) => const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -24,6 +31,11 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // --- INTEGRAÇÃO COM O DEVICE PREVIEW ---
+      locale: DevicePreview.locale(context),
+      builder: DevicePreview.appBuilder,
+      // ---------------------------------------
+      
       title: 'CalistenIA',
       debugShowCheckedModeBanner: false,
       
