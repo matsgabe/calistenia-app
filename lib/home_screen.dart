@@ -9,7 +9,8 @@ import 'dieta_repository.dart';
 import 'detalhes_treino_screen.dart';
 import 'conquistas_screen.dart';
 import 'nutricao_ia_service.dart';
-import 'calendario_screen.dart'; // Import da nova tela de calendário
+import 'calendario_screen.dart';
+import 'editar_perfil_screen.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -680,7 +681,23 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-          // -----------------------------------------
+
+          IconButton(
+            icon: const Icon(Icons.manage_accounts, color: Colors.greenAccent),
+            tooltip: 'Atualizar Peso e Metas',
+            onPressed: () async {
+              final atualizou = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      EditarPerfilScreen(usuarioId: widget.usuarioId),
+                ),
+              );
+              if (atualizou == true) {
+                _carregarDashboard(); // Recarrega os novos dados da IA na Home
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.exit_to_app, color: Colors.redAccent),
             onPressed: () => _deslogar(),

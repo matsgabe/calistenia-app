@@ -201,7 +201,7 @@ class _CadastroScreenState extends State {
               TextField(
                 controller: _usernameController,
                 decoration: const InputDecoration(
-                  hintText: 'Username (ex: matsgabe)',
+                  hintText: 'Username (ex: usario123)',
                   prefixIcon: Icon(Icons.person, color: Colors.grey),
                 ),
               ),

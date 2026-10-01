@@ -52,14 +52,19 @@ class UsuarioRepository {
     int usuarioId,
   ) async {
     try {
-      final resposta = await _supabase
+      final response = await _supabase
           .from('historico_fisico')
           .select()
           .eq('usuario_id', usuarioId)
-          .limit(5);
-      return List<Map<String, dynamic>>.from(resposta);
+          .order(
+            'id',
+            ascending: false,
+          )
+          .limit(1);
+
+      return List<Map<String, dynamic>>.from(response);
     } catch (e) {
-      debugPrint('Erro ao buscar histórico recente: $e');
+      print('Erro ao buscar histórico recente: $e');
       return [];
     }
   }
@@ -194,6 +199,35 @@ class UsuarioRepository {
     } catch (e) {
       debugPrint('Erro ao buscar plano da data $dataIso: $e');
       return null;
+    }
+  }
+
+  Future<void> atualizarPerfilCompleto({
+    required int usuarioId,
+    required double pesoKg,
+    required double alturaCm,
+    required String objetivo,
+    required String nivel,
+  }) async {
+    try {
+      // 1. Atualiza a altura na tabela usuarios usando a coluna 'altura_cm'
+      await _supabase
+          .from('usuarios')
+          .update({'altura_cm': alturaCm})
+          .eq('id', usuarioId);
+
+      // 2. Insere a nova evolução no historico_fisico (sem a coluna altura)
+      await _supabase.from('historico_fisico').insert({
+        'usuario_id': usuarioId,
+        'peso_kg': pesoKg,
+        'objetivo': objetivo,
+        'nivel_atividade':
+            nivel, // Nome da coluna correta na tabela historico_fisico
+        'data_registro': DateTime.now().toIso8601String().split('T')[0],
+      });
+    } catch (e) {
+      print('Erro ao atualizar perfil completo: $e');
+      rethrow;
     }
   }
 }
