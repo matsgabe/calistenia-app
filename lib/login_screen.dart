@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Necessário para o TextInput.finishAutofillContext()
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'usuario_repository.dart';
 import 'home_screen.dart';
 import 'cadastro_screen.dart';
@@ -17,6 +20,39 @@ class _LoginScreenState extends State<LoginScreen> {
 
   bool _isLoading = false;
   bool _ocultarSenha = true;
+  bool _manterConectado = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarSessaoSalva();
+  }
+
+  Future<void> _verificarSessaoSalva() async {
+    try {
+      final session = Supabase.instance.client.auth.currentSession;
+
+      if (session != null && session.user.email != null) {
+        final username = session.user.email!.split('@')[0];
+
+        final response = await Supabase.instance.client
+            .from('usuarios')
+            .select('id')
+            .eq('username', username)
+            .maybeSingle();
+
+        if (response != null && mounted) {
+          final int usuarioId = response['id'];
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => HomeScreen(usuarioId: usuarioId)),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Erro ao verificar sessão salva: $e');
+    }
+  }
 
   Future<void> _entrar() async {
     final u = _usernameController.text.trim();
@@ -32,6 +68,9 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
+      // 1. Notifica o navegador que o formulário foi concluído, ativando o pop-up de "Salvar Senha"
+      TextInput.finishAutofillContext();
+
       final user = await _usuarioRepository.fazerLogin(u, s);
       if (user != null) {
         if (mounted) {
@@ -54,9 +93,8 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro no login: $e')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro no login: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -75,8 +113,13 @@ class _LoginScreenState extends State<LoginScreen> {
           builder: (context, setStateDialog) {
             return AlertDialog(
               backgroundColor: const Color(0xFF1E1E1E), // Fundo CyberFit
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Recuperar Senha 🔑', style: TextStyle(color: Colors.greenAccent, fontSize: 18)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Text(
+                'Recuperar Senha 🔑',
+                style: TextStyle(color: Colors.greenAccent, fontSize: 18),
+              ),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -101,7 +144,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: const Icon(Icons.lock, color: Colors.grey),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          obscureNewPass ? Icons.visibility_off : Icons.visibility,
+                          obscureNewPass
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: Colors.grey,
                         ),
                         onPressed: () {
@@ -117,7 +162,10 @@ class _LoginScreenState extends State<LoginScreen> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+                  child: const Text(
+                    'Cancelar',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ),
                 ElevatedButton(
                   onPressed: () async {
@@ -133,7 +181,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('Senha redefinida com sucesso! Faça login.'),
+                            content: Text(
+                              'Senha redefinida com sucesso! Faça login.',
+                            ),
                             backgroundColor: Colors.green,
                           ),
                         );
@@ -165,11 +215,19 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.fitness_center, color: Colors.greenAccent, size: 80),
+              const Icon(
+                Icons.fitness_center,
+                color: Colors.greenAccent,
+                size: 80,
+              ),
               const SizedBox(height: 16),
               const Text(
-                'CalistenIA', 
-                style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                'CalistenIA',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
               const SizedBox(height: 8),
               const Text(
@@ -177,36 +235,74 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(color: Colors.grey, fontSize: 16),
               ),
               const SizedBox(height: 40),
-              
-              TextField(
-                controller: _usernameController,
-                decoration: const InputDecoration(
-                  hintText: 'Username',
-                  prefixIcon: Icon(Icons.person, color: Colors.grey),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _senhaController,
-                obscureText: _ocultarSenha,
-                decoration: InputDecoration(
-                  hintText: 'Senha',
-                  prefixIcon: const Icon(Icons.lock, color: Colors.grey),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _ocultarSenha ? Icons.visibility_off : Icons.visibility,
-                      color: Colors.grey,
+
+              AutofillGroup(
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _usernameController,
+                      autofillHints: const [AutofillHints.username],
+                      decoration: const InputDecoration(
+                        hintText: 'Username',
+                        prefixIcon: Icon(Icons.person, color: Colors.grey),
+                      ),
                     ),
-                    onPressed: () => setState(() => _ocultarSenha = !_ocultarSenha),
-                  ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _senhaController,
+                      obscureText: _ocultarSenha,
+                      autofillHints: const [AutofillHints.password],
+                      onEditingComplete:
+                          _entrar, // Permite submeter pressionando 'Enter'
+                      decoration: InputDecoration(
+                        hintText: 'Senha',
+                        prefixIcon: const Icon(Icons.lock, color: Colors.grey),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            _ocultarSenha
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            color: Colors.grey,
+                          ),
+                          onPressed: () =>
+                              setState(() => _ocultarSenha = !_ocultarSenha),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+
               const SizedBox(height: 8),
+
+              Row(
+                children: [
+                  Checkbox(
+                    value: _manterConectado,
+                    activeColor: Colors.greenAccent,
+                    checkColor: Colors.black,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        _manterConectado = value ?? true;
+                      });
+                    },
+                  ),
+                  const Text(
+                    'Manter conectado',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: _mostrarDialogEsqueciSenha,
-                  child: const Text('Esqueci minha senha', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  child: const Text(
+                    'Esqueci minha senha',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -225,12 +321,18 @@ class _LoginScreenState extends State<LoginScreen> {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const CadastroScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const CadastroScreen(),
+                    ),
                   );
                 },
                 child: const Text(
                   'Não tem uma conta? Cadastre-se',
-                  style: TextStyle(color: Colors.greenAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    color: Colors.greenAccent,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
