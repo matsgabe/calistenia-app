@@ -178,4 +178,22 @@ class UsuarioRepository {
       'ativo': true,
     });
   }
+
+  Future<Map<String, dynamic>?> buscarPlanoPorData(
+    int usuarioId,
+    String dataIso,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('plano_alimentar')
+          .select()
+          .eq('usuario_id', usuarioId)
+          .eq('data_registro', dataIso)
+          .maybeSingle();
+      return response;
+    } catch (e) {
+      debugPrint('Erro ao buscar plano da data $dataIso: $e');
+      return null;
+    }
+  }
 }

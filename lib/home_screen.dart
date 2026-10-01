@@ -9,6 +9,7 @@ import 'dieta_repository.dart';
 import 'detalhes_treino_screen.dart';
 import 'conquistas_screen.dart';
 import 'nutricao_ia_service.dart';
+import 'calendario_screen.dart'; // Import da nova tela de calendário
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -262,7 +263,6 @@ class _HomeScreenState extends State<HomeScreen> {
         (_planoData != null && _planoData!.isNotEmpty) ||
         (planoCache != null && planoCache.isNotEmpty);
 
-    // Mapeamento preciso das metas definidas pelo usuário no banco ou cache
     final caloriasAlvo =
         _planoData?['calorias_alvo'] ?? planoCache?['calorias_alvo'] ?? 2000;
     final protAlvo =
@@ -666,6 +666,21 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         backgroundColor: Colors.black,
         actions: [
+          // --- BOTÃO DO CALENDÁRIO ADICIONADO AQUI ---
+          IconButton(
+            icon: const Icon(Icons.calendar_month, color: Colors.greenAccent),
+            tooltip: 'Ver Calendário e Histórico',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      CalendarioScreen(usuarioId: widget.usuarioId),
+                ),
+              );
+            },
+          ),
+          // -----------------------------------------
           IconButton(
             icon: const Icon(Icons.exit_to_app, color: Colors.redAccent),
             onPressed: () => _deslogar(),

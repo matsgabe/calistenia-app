@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 class DietaRepository {
   final _supabase = Supabase.instance.client;
@@ -85,5 +86,25 @@ class DietaRepository {
   // --- NOVA FUNÇÃO: DELETA UMA REFEIÇÃO DO BANCO ---
   Future<void> excluirRefeicao(int idRefeicao) async {
     await _supabase.from('consumo_alimentar').delete().eq('id', idRefeicao);
+  }
+
+  // Busca todas as refeições consumidas por um usuário em uma data específica ('YYYY-MM-DD')
+  Future<List<Map<String, dynamic>>> buscarRefeicoesPorData(
+    int usuarioId,
+    String dataIso,
+  ) async {
+    try {
+      final response = await _supabase
+          .from('consumo_alimentar') // Tabela correta
+          .select()
+          .eq('usuario_id', usuarioId)
+          .gte('data_registro', '$dataIso 00:00:00')
+          .lte('data_registro', '$dataIso 23:59:59'); // Pega o dia inteiro
+
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      print('Erro ao buscar refeições por data: $e');
+      return [];
+    }
   }
 }
