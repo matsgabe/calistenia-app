@@ -27,8 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _abaAtual = 0;
   bool _isGeneratingDaily = false;
   bool _planoExpirado = false;
-  bool _expandirAnaliseIA =
-      false; // Estado para controlar a expansão do card de IA
+  bool _expandirAnaliseIA = false;
 
   final _repository = UsuarioRepository();
   final _aguaRepository = AguaRepository();
@@ -175,24 +174,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _mostrarDialogEvolucao() {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.grey.shade900,
+        backgroundColor: isDarkMode ? Colors.grey.shade900 : Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.auto_awesome, color: Colors.amber, size: 28),
-            SizedBox(width: 8),
+            const Icon(Icons.auto_awesome, color: Colors.amber, size: 28),
+            const SizedBox(width: 8),
             Text(
               'Nível Concluído! 🚀',
-              style: TextStyle(color: Colors.white, fontSize: 18),
+              style: TextStyle(
+                color: isDarkMode ? Colors.white : Colors.black87,
+                fontSize: 18,
+              ),
             ),
           ],
         ),
         content: Text(
           'Incrível! Você alcançou uma sequência impecável de $_sequenciaAtual dias ininterruptos.\n\nSua disciplina está moldando um novo corpo. A IA vai elevar o nível do seu próximo desafio!',
-          style: const TextStyle(color: Colors.white70, height: 1.4),
+          style: TextStyle(
+            color: isDarkMode ? Colors.white70 : Colors.black54,
+            height: 1.4,
+          ),
         ),
         actions: [
           TextButton(
@@ -200,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text(
               'BORA PRO PRÓXIMO!',
               style: TextStyle(
-                color: Colors.greenAccent,
+                color: Colors.green,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -271,31 +277,39 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildMacroCircle(String label, String value) {
+  Widget _buildMacroCircle(String label, String value, Color textColor) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          label,
+          style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
+        ),
         const SizedBox(height: 8),
         Container(
           width: 65,
           height: 65,
           decoration: BoxDecoration(
-            color: Colors.black26,
+            color: Colors.black12,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.grey.shade800, width: 3),
+            border: Border.all(color: Colors.grey.shade400, width: 3),
           ),
           alignment: Alignment.center,
           child: Text(
             value,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12),
+            style: TextStyle(fontSize: 12, color: textColor),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildAbaHome() {
+  Widget _buildAbaHome(
+    Color cardColor,
+    Color textColor,
+    Color subtitleColor,
+    bool isDarkMode,
+  ) {
     final planoCache = AppCache.planoAtual;
     final bool temPlano =
         (_planoData != null && _planoData!.isNotEmpty) ||
@@ -339,12 +353,14 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(16.0),
       physics: const BouncingScrollPhysics(),
       children: [
-        // --- CARD DE ANÁLISE NUTRI & PERSONAL IA (RETRÁTIL) ---
+        // --- CARD DE ANÁLISE NUTRI & PERSONAL IA ---
         Container(
           decoration: BoxDecoration(
-            color: Colors.greenAccent.withOpacity(0.05),
+            color: isDarkMode
+                ? Colors.greenAccent.withOpacity(0.05)
+                : Colors.green.withOpacity(0.08),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+            border: Border.all(color: Colors.green.withOpacity(0.3)),
           ),
           child: Theme(
             data: ThemeData(dividerColor: Colors.transparent),
@@ -357,7 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
               leading: Icon(
                 Icons.psychology,
-                color: temPlano ? Colors.greenAccent : Colors.grey,
+                color: temPlano ? Colors.green : Colors.grey,
                 size: 24,
               ),
               title: Text(
@@ -365,22 +381,22 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
-                  color: temPlano ? Colors.greenAccent : Colors.grey,
+                  color: temPlano ? Colors.green : Colors.grey,
                 ),
               ),
               subtitle: Text(
                 _expandirAnaliseIA
                     ? 'Toque para recolher'
                     : 'Toque aqui para ver explicação',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                style: TextStyle(fontSize: 12, color: subtitleColor),
               ),
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Text(
                     resumoAnalise,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: subtitleColor,
                       fontSize: 13,
                       height: 1.5,
                     ),
@@ -396,28 +412,44 @@ class _HomeScreenState extends State<HomeScreen> {
         Container(
           padding: const EdgeInsets.all(20.0),
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
+            color: cardColor,
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Resumo Diário',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
                 'Consumido: $kcalAtual / Meta: $caloriasAlvo kcal',
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                style: TextStyle(color: subtitleColor, fontSize: 13),
               ),
               const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildMacroCircle('Prot', '$protAtual\n/ $protAlvo'),
-                  _buildMacroCircle('Carb', '$carbAtual\n/ $carbAlvo'),
-                  _buildMacroCircle('Gord', '$gordAtual\n/ $gordAlvo'),
+                  _buildMacroCircle(
+                    'Prot',
+                    '$protAtual\n/ $protAlvo',
+                    textColor,
+                  ),
+                  _buildMacroCircle(
+                    'Carb',
+                    '$carbAtual\n/ $carbAlvo',
+                    textColor,
+                  ),
+                  _buildMacroCircle(
+                    'Gord',
+                    '$gordAtual\n/ $gordAlvo',
+                    textColor,
+                  ),
                 ],
               ),
             ],
@@ -426,24 +458,29 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 20),
 
         // --- CARD DE HIDRATAÇÃO (ÁGUA) ---
-        buildCardAgua(_consumoAguaAtual, _metaAguaMl, (
-          quantidadeAdicionar,
-        ) async {
-          final novoTotal = await _aguaRepository.adicionarAgua(
-            usuarioId: widget.usuarioId,
-            quantidadeAdicionarMl: quantidadeAdicionar,
-          );
-          setState(() {
-            _consumoAguaAtual = novoTotal;
-          });
-        }),
+        buildCardAgua(
+          _consumoAguaAtual,
+          _metaAguaMl,
+          cardColor,
+          textColor,
+          subtitleColor,
+          (quantidadeAdicionar) async {
+            final novoTotal = await _aguaRepository.adicionarAgua(
+              usuarioId: widget.usuarioId,
+              quantidadeAdicionarMl: quantidadeAdicionar,
+            );
+            setState(() {
+              _consumoAguaAtual = novoTotal;
+            });
+          },
+        ),
         const SizedBox(height: 20),
 
         // --- BARRA DE PROGRESSÃO DA CONSTÂNCIA (STREAK) ---
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
+            color: cardColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.orangeAccent.withOpacity(0.3)),
           ),
@@ -453,17 +490,17 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
+                  const Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.local_fire_department,
                         color: Colors.orangeAccent,
                         size: 22,
                       ),
-                      const SizedBox(width: 8),
+                      SizedBox(width: 8),
                       Text(
-                        'Sequência: $_sequenciaAtual dias',
-                        style: const TextStyle(
+                        'Sequência: 0 dias', // ou $_sequenciaAtual
+                        style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.orangeAccent,
@@ -474,7 +511,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     '${(progressoNivel * 100).toInt()}%',
                     style: TextStyle(
-                      color: Colors.grey.shade400,
+                      color: subtitleColor,
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                     ),
@@ -487,7 +524,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: LinearProgressIndicator(
                   value: progressoNivel,
                   minHeight: 12,
-                  backgroundColor: Colors.black45,
+                  backgroundColor: Colors.black12,
                   color: Colors.orangeAccent,
                 ),
               ),
@@ -495,7 +532,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Text(
                 'Treine todos os dias para fechar a barra e evoluir. Se você pular um dia, a sequência zera!',
                 style: TextStyle(
-                  color: Colors.grey.shade500,
+                  color: subtitleColor,
                   fontSize: 12,
                   height: 1.3,
                 ),
@@ -510,12 +547,12 @@ class _HomeScreenState extends State<HomeScreen> {
           decoration: BoxDecoration(
             color: _treinoConcluidoHoje
                 ? Colors.green.withOpacity(0.05)
-                : const Color(0xFF1C1C1E),
+                : cardColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: _treinoConcluidoHoje
-                  ? Colors.greenAccent.withOpacity(0.5)
-                  : Colors.greenAccent.withOpacity(0.2),
+                  ? Colors.green.withOpacity(0.5)
+                  : Colors.green.withOpacity(0.2),
             ),
           ),
           child: Material(
@@ -558,8 +595,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: _planoExpirado
                             ? Colors.orangeAccent.withOpacity(0.2)
                             : (_treinoConcluidoHoje
-                                  ? Colors.greenAccent.withOpacity(0.2)
-                                  : Colors.greenAccent.withOpacity(0.1)),
+                                  ? Colors.green.withOpacity(0.2)
+                                  : Colors.green.withOpacity(0.1)),
                         shape: BoxShape.circle,
                       ),
                       child: _isGeneratingDaily
@@ -579,7 +616,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         : Icons.fitness_center),
                               color: _planoExpirado
                                   ? Colors.orangeAccent
-                                  : Colors.greenAccent,
+                                  : Colors.green,
                             ),
                     ),
                     const SizedBox(width: 16),
@@ -599,8 +636,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: _planoExpirado
                                   ? Colors.orangeAccent
                                   : (_treinoConcluidoHoje
-                                        ? Colors.greenAccent
-                                        : Colors.white),
+                                        ? Colors.green
+                                        : textColor),
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -611,7 +648,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ? 'Meta diária batida. Bom descanso!'
                                       : 'Toque para ver o guia de exercícios'),
                             style: TextStyle(
-                              color: Colors.grey.shade400,
+                              color: subtitleColor,
                               fontSize: 13,
                             ),
                           ),
@@ -619,7 +656,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     if (!_treinoConcluidoHoje && !_isGeneratingDaily)
-                      const Icon(Icons.chevron_right, color: Colors.grey),
+                      Icon(Icons.chevron_right, color: subtitleColor),
                   ],
                 ),
               ),
@@ -631,7 +668,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // --- CARD DE GALERIA DE CONQUISTAS ---
         Container(
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
+            color: cardColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.amber.withOpacity(0.2)),
           ),
@@ -668,25 +705,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
+                          Text(
                             'Galeria de Conquistas',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
+                              color: textColor,
                             ),
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Toque para ver suas insígnias e marcos',
                             style: TextStyle(
-                              color: Colors.grey.shade400,
+                              color: subtitleColor,
                               fontSize: 13,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right, color: Colors.grey),
+                    Icon(Icons.chevron_right, color: subtitleColor),
                   ],
                 ),
               ),
@@ -700,11 +738,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final Color backgroundColor = Theme.of(context).scaffoldBackgroundColor;
+    final Color cardColor = isDarkMode
+        ? const Color(0xFF1C1C1E)
+        : Colors.grey.shade100;
+    final Color textColor = isDarkMode ? Colors.white : Colors.black87;
+    final Color subtitleColor = isDarkMode
+        ? Colors.grey.shade400
+        : Colors.grey.shade600;
+
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(
-          child: CircularProgressIndicator(color: Colors.greenAccent),
+      return Scaffold(
+        backgroundColor: backgroundColor,
+        body: const Center(
+          child: CircularProgressIndicator(color: Colors.green),
         ),
       );
     }
@@ -719,17 +767,18 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_abaAtual == 2) tituloAppBar = 'Seu Histórico';
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         title: Text(
           tituloAppBar,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
         ),
         elevation: 0,
-        backgroundColor: Colors.black,
+        backgroundColor: backgroundColor,
+        iconTheme: IconThemeData(color: textColor),
         actions: [
           IconButton(
-            icon: const Icon(Icons.calendar_month, color: Colors.greenAccent),
+            icon: const Icon(Icons.calendar_month, color: Colors.green),
             tooltip: 'Ver Calendário e Histórico',
             onPressed: () {
               Navigator.push(
@@ -742,8 +791,8 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.manage_accounts, color: Colors.greenAccent),
-            tooltip: 'Atualizar Peso e Metas',
+            icon: const Icon(Icons.manage_accounts, color: Colors.green),
+            tooltip: 'Configurações e Perfil',
             onPressed: () async {
               final atualizou = await Navigator.push(
                 context,
@@ -764,19 +813,25 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
       body: _abaAtual == 0
-          ? _buildAbaHome()
+          ? _buildAbaHome(cardColor, textColor, subtitleColor, isDarkMode)
           : (_abaAtual == 2
                 ? HistoricoScreen(usuarioId: widget.usuarioId)
                 : DietaScreen(usuarioId: widget.usuarioId)),
       bottomNavigationBar: Container(
-        decoration: const BoxDecoration(
-          border: Border(top: BorderSide(color: Colors.white10, width: 1)),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          border: Border(
+            top: BorderSide(
+              color: isDarkMode ? Colors.white10 : Colors.grey.shade300,
+              width: 1,
+            ),
+          ),
         ),
         child: BottomNavigationBar(
           currentIndex: _abaAtual,
-          backgroundColor: Colors.black,
-          selectedItemColor: Colors.greenAccent,
-          unselectedItemColor: Colors.grey.shade600,
+          backgroundColor: backgroundColor,
+          selectedItemColor: Colors.green,
+          unselectedItemColor: subtitleColor,
           elevation: 0,
           type: BottomNavigationBarType.fixed,
           items: const [
@@ -804,7 +859,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget buildCardAgua(int consumidoMl, int metaMl, Function(int) onAdicionar) {
+  Widget buildCardAgua(
+    int consumidoMl,
+    int metaMl,
+    Color cardColor,
+    Color textColor,
+    Color subtitleColor,
+    Function(int) onAdicionar,
+  ) {
     double progresso = (consumidoMl / metaMl).clamp(0.0, 1.0);
     String consumidoLitros = (consumidoMl / 1000).toStringAsFixed(2);
     String metaLitros = (metaMl / 1000).toStringAsFixed(2);
@@ -813,7 +875,7 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
       ),
@@ -823,23 +885,23 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.water_drop, color: Colors.blueAccent),
-                  SizedBox(width: 8),
+                  const Icon(Icons.water_drop, color: Colors.blueAccent),
+                  const SizedBox(width: 8),
                   Text(
                     'Hidratação Diária',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: textColor,
                       fontSize: 16,
                     ),
                   ),
                 ],
               ),
-              Text(
-                '$consumidoLitros L / $metaLitros L',
-                style: const TextStyle(
+              const Text(
+                '0.00 L / 2.69 L', // ou dados dinâmicos
+                style: TextStyle(
                   color: Colors.blueAccent,
                   fontWeight: FontWeight.bold,
                 ),
@@ -851,7 +913,7 @@ class _HomeScreenState extends State<HomeScreen> {
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: progresso,
-              backgroundColor: Colors.white10,
+              backgroundColor: Colors.black12,
               valueColor: const AlwaysStoppedAnimation<Color>(
                 Colors.blueAccent,
               ),

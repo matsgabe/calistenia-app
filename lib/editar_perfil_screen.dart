@@ -15,15 +15,19 @@ class EditarPerfilScreen extends StatefulWidget {
 class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   final _repository = UsuarioRepository();
 
+  // Controladores
+  final _nomeController = TextEditingController();
+  final _senhaController = TextEditingController();
   final _pesoController = TextEditingController();
   final _alturaController = TextEditingController();
 
-  // Exibe o texto amigável completo na UI
+  // Controle de visibilidade da senha
+  bool _senhaOculta = true;
+
   String _objetivoSelecionado = 'Hipertrofia (Ganhar massa muscular)';
   String _nivelSelecionado = 'Iniciante (Nunca fiz calistenia)';
   bool _isLoading = false;
 
-  // Textos completos para a UI iguais aos do cadastro
   final List<String> _objetivosExibicao = [
     'Hipertrofia (Ganhar massa muscular)',
     'Emagrecer (Perder gordura)',
@@ -36,7 +40,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     'Avançado (Faço Muscle Up)',
   ];
 
-  // Mapeia o texto amigável da UI para o formato aceito pelo banco de dados (enum)
   String _mapearObjetivoParaBanco(String objetivoUI) {
     if (objetivoUI.contains('Hipertrofia')) return 'Hipertrofia';
     if (objetivoUI.contains('Emagrecer')) return 'Perder Peso';
@@ -44,7 +47,6 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     return 'Hipertrofia';
   }
 
-  // Mapeia o valor do banco de volta para o texto completo amigável da UI
   String _mapearObjetivoParaUI(String objetivoBanco) {
     if (objetivoBanco == 'Hipertrofia') {
       return 'Hipertrofia (Ganhar massa muscular)';
@@ -79,18 +81,21 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
   Future<void> _carregarDadosAtuais() async {
     setState(() => _isLoading = true);
     try {
-      // 1. Busca a altura real na tabela 'usuarios'
       final userResponse = await Supabase.instance.client
           .from('usuarios')
-          .select('altura_cm')
+          .select('nome, altura_cm')
           .eq('id', widget.usuarioId)
           .maybeSingle();
 
-      if (userResponse != null && userResponse['altura_cm'] != null) {
-        _alturaController.text = userResponse['altura_cm'].toString();
+      if (userResponse != null) {
+        if (userResponse['nome'] != null) {
+          _nomeController.text = userResponse['nome'].toString();
+        }
+        if (userResponse['altura_cm'] != null) {
+          _alturaController.text = userResponse['altura_cm'].toString();
+        }
       }
 
-      // 2. Busca o histórico recente (peso, objetivo, nível)
       final historico = await _repository.buscarHistoricoRecente(
         widget.usuarioId,
       );
@@ -121,11 +126,13 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     }
   }
 
-  Future<void> _salvarEAtualizarIA() async {
+  Future<void> _salvarConfiguracoes() async {
     final peso =
         double.tryParse(_pesoController.text.replaceAll(',', '.')) ?? 0.0;
     final altura =
         double.tryParse(_alturaController.text.replaceAll(',', '.')) ?? 0.0;
+    final novoNome = _nomeController.text.trim();
+    final novaSenha = _senhaController.text.trim();
 
     if (peso <= 0 || altura <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -140,7 +147,21 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Salva convertendo para o formato do banco de dados
+      if (novoNome.isNotEmpty) {
+        await Supabase.instance.client
+            .from('usuarios')
+            .update({'nome': novoNome})
+            .eq('id', widget.usuarioId);
+      }
+
+      if (novaSenha.isNotEmpty && novaSenha.length >= 6) {
+        await Supabase.instance.client.auth.updateUser(
+          UserAttributes(password: novaSenha),
+        );
+      } else if (novaSenha.isNotEmpty) {
+        throw Exception('A senha deve ter pelo menos 6 caracteres.');
+      }
+
       await _repository.atualizarPerfilCompleto(
         usuarioId: widget.usuarioId,
         pesoKg: peso,
@@ -169,7 +190,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Perfil atualizado e IA recalculada com sucesso! 🚀'),
+            content: Text('Configurações e perfil atualizados com sucesso! 🚀'),
             backgroundColor: Colors.green,
           ),
         );
@@ -195,7 +216,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text(
-          'Atualizar Perfil e Metas',
+          'Configurações e Perfil',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.transparent,
@@ -211,47 +232,124 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'Corrija sua altura ou atualize suas métricas para a IA recalcular sua dieta e treinos sob medida.',
+                    'Gerencie suas informações cadastrais e métricas para recalcular seus treinos e dieta sob medida.',
                     style: TextStyle(
                       color: Colors.grey,
-                      fontSize: 14,
+                      fontSize: 13,
                       height: 1.4,
                     ),
                   ),
                   const SizedBox(height: 30),
 
-                  TextField(
-                    controller: _pesoController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                  // --- SEÇÃO: DADOS CADASTRAIS ---
+                  const Text(
+                    'Dados Cadastrais',
+                    style: TextStyle(
+                      color: Colors.greenAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  TextField(
+                    controller: _nomeController,
+                    style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
-                      labelText: 'Peso Atual (kg)',
-                      prefixIcon: Icon(
-                        Icons.monitor_weight,
-                        color: Colors.greenAccent,
-                      ),
+                      labelText: 'Nome Completo',
+                      prefixIcon: Icon(Icons.person, color: Colors.greenAccent),
                     ),
                   ),
                   const SizedBox(height: 16),
 
                   TextField(
-                    controller: _alturaController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                    controller: _senhaController,
+                    obscureText: _senhaOculta,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Nova Senha (Opcional)',
+                      hintText: 'Mínimo de 6 caracteres',
+                      hintStyle: const TextStyle(
+                        color: Colors.grey,
+                        fontSize: 12,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.lock,
+                        color: Colors.greenAccent,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _senhaOculta
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                          color: Colors.grey,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _senhaOculta = !_senhaOculta;
+                          });
+                        },
+                      ),
                     ),
-                    decoration: const InputDecoration(
-                      labelText: 'Altura (cm)',
-                      prefixIcon: Icon(Icons.height, color: Colors.greenAccent),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // --- SEÇÃO: MÉTRICAS E OBJETIVOS ---
+                  const Text(
+                    'Métricas e Objetivos (IA)',
+                    style: TextStyle(
+                      color: Colors.greenAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _pesoController,
+                          style: const TextStyle(color: Colors.white),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Peso Atual (kg)',
+                            prefixIcon: Icon(
+                              Icons.monitor_weight,
+                              color: Colors.greenAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: TextField(
+                          controller: _alturaController,
+                          style: const TextStyle(color: Colors.white),
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Altura (cm)',
+                            prefixIcon: Icon(
+                              Icons.height,
+                              color: Colors.greenAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 24),
 
                   const Text(
-                    'Qual o seu principal objetivo?',
+                    'Principal objetivo',
                     style: TextStyle(
                       color: Colors.white70,
                       fontWeight: FontWeight.bold,
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -266,7 +364,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                             child: Text(
                               obj,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         )
@@ -284,6 +385,7 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     style: TextStyle(
                       color: Colors.white70,
                       fontWeight: FontWeight.bold,
+                      fontSize: 13,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -298,7 +400,10 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                             child: Text(
                               niv,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontSize: 13),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         )
@@ -318,17 +423,23 @@ class _EditarPerfilScreenState extends State<EditarPerfilScreen> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _salvarEAtualizarIA,
+                      onPressed: _isLoading ? null : _salvarConfiguracoes,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.greenAccent,
-                      ),
-                      child: const Text(
-                        'RECALCULAR COM IA',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
+                      child: _isLoading
+                          ? const CircularProgressIndicator(color: Colors.black)
+                          : const Text(
+                              'SALVAR ALTERAÇÕES',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
                     ),
                   ),
                 ],
