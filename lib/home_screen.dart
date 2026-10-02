@@ -11,7 +11,7 @@ import 'conquistas_screen.dart';
 import 'nutricao_ia_service.dart';
 import 'calendario_screen.dart';
 import 'editar_perfil_screen.dart';
-import 'agua_repository.dart'; // Importação do repositório de água
+import 'agua_repository.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -27,9 +27,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _abaAtual = 0;
   bool _isGeneratingDaily = false;
   bool _planoExpirado = false;
+  bool _expandirAnaliseIA =
+      false; // Estado para controlar a expansão do card de IA
 
   final _repository = UsuarioRepository();
-  final _aguaRepository = AguaRepository(); // Instância do repositório de água
+  final _aguaRepository = AguaRepository();
 
   Map<String, dynamic>? _usuarioData;
   Map<String, dynamic>? _planoData;
@@ -39,7 +41,6 @@ class _HomeScreenState extends State<HomeScreen> {
   int _totalTreinosConcluidos = 0;
   int _sequenciaAtual = 0;
 
-  // Variáveis de controle de água
   int _consumoAguaAtual = 0;
   int _metaAguaMl = 2500;
 
@@ -55,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _carregarDashboard();
-    _carregarDadosAgua(); // Carrega os dados de hidratação ao iniciar
+    _carregarDadosAgua();
   }
 
   Future<void> _carregarDadosAgua() async {
@@ -167,7 +168,6 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
 
-      // Atualiza também os dados de água caso o peso tenha mudado
       _carregarDadosAgua();
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
@@ -339,45 +339,55 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(16.0),
       physics: const BouncingScrollPhysics(),
       children: [
-        // --- CARD DE ANÁLISE NUTRI & PERSONAL IA ---
+        // --- CARD DE ANÁLISE NUTRI & PERSONAL IA (RETRÁTIL) ---
         Container(
-          padding: const EdgeInsets.all(16.0),
           decoration: BoxDecoration(
             color: Colors.greenAccent.withOpacity(0.05),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.psychology,
-                    color: temPlano ? Colors.greenAccent : Colors.grey,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Análise Nutri & Personal IA',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: temPlano ? Colors.greenAccent : Colors.grey,
-                    ),
-                  ),
-                ],
+          child: Theme(
+            data: ThemeData(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: _expandirAnaliseIA,
+              onExpansionChanged: (expanded) {
+                setState(() {
+                  _expandirAnaliseIA = expanded;
+                });
+              },
+              leading: Icon(
+                Icons.psychology,
+                color: temPlano ? Colors.greenAccent : Colors.grey,
+                size: 24,
               ),
-              const SizedBox(height: 10),
-              Text(
-                resumoAnalise,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  height: 1.5,
+              title: Text(
+                'Análise Nutri & Personal IA',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: temPlano ? Colors.greenAccent : Colors.grey,
                 ),
               ),
-            ],
+              subtitle: Text(
+                _expandirAnaliseIA
+                    ? 'Toque para recolher'
+                    : 'Toque aqui para ver explicação',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text(
+                    resumoAnalise,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      height: 1.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 20),

@@ -22,9 +22,14 @@ class _DetalhesTreinoScreenState extends State<DetalhesTreinoScreen> {
   bool _treinoIniciado = false;
   bool _emDescanso = false;
   bool _concluindo = false;
+  bool _expandirAnaliseTreino =
+      false; // Estado para expandir/recolher a análise da IA
 
   // Conjunto para armazenar os índices dos exercícios já concluídos
   final Set<int> _exerciciosConcluidos = {};
+
+  // Mapa para controlar quais cards de exercícios estão com a explicação expandida
+  final Map<int, bool> _exerciciosExpandidos = {};
 
   // Timers
   Timer? _timerSessao;
@@ -154,8 +159,8 @@ class _DetalhesTreinoScreenState extends State<DetalhesTreinoScreen> {
           ListView(
             padding: const EdgeInsets.all(16.0),
             children: [
+              // --- CARD DE ANÁLISE / DIRETRIZES DA IA (RETRÁTIL E COM CORREÇÃO DE OVERFLOW) ---
               Container(
-                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: Colors.greenAccent.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(12),
@@ -163,37 +168,51 @@ class _DetalhesTreinoScreenState extends State<DetalhesTreinoScreen> {
                     color: Colors.greenAccent.withOpacity(0.3),
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.accessibility_new,
-                          color: Colors.greenAccent,
-                          size: 20,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Calistenia Corporal (Sem Equipamentos)',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.greenAccent,
-                          ),
-                        ),
-                      ],
+                child: Theme(
+                  data: ThemeData(dividerColor: Colors.transparent),
+                  child: ExpansionTile(
+                    initiallyExpanded: _expandirAnaliseTreino,
+                    onExpansionChanged: (expanded) {
+                      setState(() {
+                        _expandirAnaliseTreino = expanded;
+                      });
+                    },
+                    leading: const Icon(
+                      Icons.accessibility_new,
+                      color: Colors.greenAccent,
+                      size: 20,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      analiseTreino,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.white70,
-                        height: 1.4,
+                    title: const Text(
+                      'Calistenia Corporal',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.greenAccent,
                       ),
                     ),
-                  ],
+                    subtitle: Text(
+                      _expandirAnaliseTreino
+                          ? 'Toque para recolher'
+                          : 'Toque aqui para ver explicação',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade400,
+                      ),
+                    ),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: Text(
+                          analiseTreino,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.white70,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -251,6 +270,8 @@ class _DetalhesTreinoScreenState extends State<DetalhesTreinoScreen> {
                   final bool jaConcluido = _exerciciosConcluidos.contains(
                     index,
                   );
+                  final bool estaExpandido =
+                      _exerciciosExpandidos[index] ?? false;
 
                   return Card(
                     color: jaConcluido
@@ -305,23 +326,70 @@ class _DetalhesTreinoScreenState extends State<DetalhesTreinoScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Como executar (Peso Corporal):',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: Colors.grey,
+
+                          // Exibe as instruções apenas se o card estiver expandido
+                          if (estaExpandido) ...[
+                            const SizedBox(height: 12),
+                            const Divider(color: Colors.white24),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'Como executar (Peso Corporal):',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            ex['instrucoes'] ??
-                                'Mantenha a postura e contração abdominal.',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              height: 1.3,
-                              color: Colors.white70,
+                            const SizedBox(height: 4),
+                            Text(
+                              ex['instrucoes'] ??
+                                  'Mantenha a postura e contração abdominal.',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                height: 1.3,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+
+                          const SizedBox(height: 8),
+                          Center(
+                            child: InkWell(
+                              onTap: () {
+                                setState(() {
+                                  _exerciciosExpandidos[index] = !estaExpandido;
+                                });
+                              },
+                              borderRadius: BorderRadius.circular(8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      estaExpandido
+                                          ? Icons.remove_circle_outline
+                                          : Icons.add_circle_outline,
+                                      color: Colors.greenAccent,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      estaExpandido
+                                          ? 'Ocultar explicação'
+                                          : 'Toque aqui para ver explicação',
+                                      style: const TextStyle(
+                                        color: Colors.greenAccent,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
 

@@ -19,6 +19,8 @@ class _DietaScreenState extends State<DietaScreen> {
   final ImagePicker _picker = ImagePicker();
 
   bool _isLoading = true;
+  bool _expandirDiretrizes =
+      false; // Estado para controlar a expansão das diretrizes da IA
   List<Map<String, dynamic>> _refeicoesHoje = [];
 
   @override
@@ -178,52 +180,66 @@ class _DietaScreenState extends State<DietaScreen> {
       );
     }
 
-    // Busca as sugestões salvas no cache que vieram da Home
     final planoCache = AppCache.planoAtual;
     final List<dynamic> sugestoes = planoCache?['sugestoes'] ?? [];
 
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // --- DIRETRIZES DA IA ---
+        // --- DIRETRIZES DA IA (RETRÁTIL) ---
         Container(
-          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: Colors.greenAccent.withOpacity(0.05),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
           ),
-          child: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.restaurant, color: Colors.greenAccent, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    'Diretrizes da Nutricionista IA',
-                    style: TextStyle(
-                      color: Colors.greenAccent,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+          child: Theme(
+            data: ThemeData(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: _expandirDiretrizes,
+              onExpansionChanged: (expanded) {
+                setState(() {
+                  _expandirDiretrizes = expanded;
+                });
+              },
+              leading: const Icon(
+                Icons.restaurant,
+                color: Colors.greenAccent,
+                size: 20,
               ),
-              SizedBox(height: 8),
-              Text(
-                'Para promover a hipertrofia muscular com foco em calistenia, precisamos de um leve superávit calórico. Suas refeições devem combinar proteínas de alto valor biológico com carboidratos complexos para garantir energia plena nos treinos.',
+              title: const Text(
+                'Diretrizes da Nutricionista IA',
                 style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 13,
-                  height: 1.4,
+                  color: Colors.greenAccent,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
                 ),
               ),
-            ],
+              subtitle: Text(
+                _expandirDiretrizes
+                    ? 'Toque para recolher'
+                    : 'Toque aqui para ver explicação',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              ),
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text(
+                    'Para promover a hipertrofia muscular com foco em calistenia, precisamos de um leve superávit calórico. Suas refeições devem combinar proteínas de alto valor biológico com carboidratos complexos para garantir energia plena nos treinos.',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 24),
 
-        // --- CARDÁPIO SUGERIDO (NOVO) ---
+        // --- CARDÁPIO SUGERIDO ---
         const Text(
           'Cardápio Sugerido (Hoje)',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
