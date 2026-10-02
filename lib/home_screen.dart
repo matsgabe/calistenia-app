@@ -899,9 +899,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              const Text(
-                '0.00 L / 2.69 L', // ou dados dinâmicos
-                style: TextStyle(
+              // CORRIGIDO AQUI: Usando as variáveis dinâmicas em vez de texto fixo
+              Text(
+                '$consumidoLitros L / $metaLitros L',
+                style: const TextStyle(
                   color: Colors.blueAccent,
                   fontWeight: FontWeight.bold,
                 ),
