@@ -11,6 +11,7 @@ import 'conquistas_screen.dart';
 import 'nutricao_ia_service.dart';
 import 'calendario_screen.dart';
 import 'editar_perfil_screen.dart';
+import 'agua_repository.dart'; // Importação do repositório de água
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -28,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _planoExpirado = false;
 
   final _repository = UsuarioRepository();
+  final _aguaRepository = AguaRepository(); // Instância do repositório de água
+
   Map<String, dynamic>? _usuarioData;
   Map<String, dynamic>? _planoData;
   bool _isLoading = true;
@@ -35,6 +38,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int _totalTreinosConcluidos = 0;
   int _sequenciaAtual = 0;
+
+  // Variáveis de controle de água
+  int _consumoAguaAtual = 0;
+  int _metaAguaMl = 2500;
 
   final _dietaRepository = DietaRepository();
   Map<String, int> _totaisConsumidos = {
@@ -48,6 +55,33 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _carregarDashboard();
+    _carregarDadosAgua(); // Carrega os dados de hidratação ao iniciar
+  }
+
+  Future<void> _carregarDadosAgua() async {
+    try {
+      final historico = await _repository.buscarHistoricoRecente(
+        widget.usuarioId,
+      );
+      double peso = 75.0;
+      if (historico.isNotEmpty && historico.first['peso_kg'] != null) {
+        peso = (historico.first['peso_kg'] as num).toDouble();
+      }
+
+      final meta = _aguaRepository.calcularMetaAguaMl(peso);
+      final consumido = await _aguaRepository.buscarConsumoHoje(
+        widget.usuarioId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _metaAguaMl = meta;
+          _consumoAguaAtual = consumido;
+        });
+      }
+    } catch (e) {
+      print('Erro ao carregar dados de água: $e');
+    }
   }
 
   int _calcularSequencia(List<dynamic> treinos) {
@@ -132,6 +166,9 @@ class _HomeScreenState extends State<HomeScreen> {
           _isLoading = false;
         });
       }
+
+      // Atualiza também os dados de água caso o peso tenha mudado
+      _carregarDadosAgua();
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -376,6 +413,20 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
         ),
+        const SizedBox(height: 20),
+
+        // --- CARD DE HIDRATAÇÃO (ÁGUA) ---
+        buildCardAgua(_consumoAguaAtual, _metaAguaMl, (
+          quantidadeAdicionar,
+        ) async {
+          final novoTotal = await _aguaRepository.adicionarAgua(
+            usuarioId: widget.usuarioId,
+            quantidadeAdicionarMl: quantidadeAdicionar,
+          );
+          setState(() {
+            _consumoAguaAtual = novoTotal;
+          });
+        }),
         const SizedBox(height: 20),
 
         // --- BARRA DE PROGRESSÃO DA CONSTÂNCIA (STREAK) ---
@@ -667,7 +718,6 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         backgroundColor: Colors.black,
         actions: [
-          // --- BOTÃO DO CALENDÁRIO ADICIONADO AQUI ---
           IconButton(
             icon: const Icon(Icons.calendar_month, color: Colors.greenAccent),
             tooltip: 'Ver Calendário e Histórico',
@@ -681,7 +731,6 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-
           IconButton(
             icon: const Icon(Icons.manage_accounts, color: Colors.greenAccent),
             tooltip: 'Atualizar Peso e Metas',
@@ -694,7 +743,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
               if (atualizou == true) {
-                _carregarDashboard(); // Recarrega os novos dados da IA na Home
+                _carregarDashboard();
               }
             },
           ),
@@ -741,6 +790,123 @@ class _HomeScreenState extends State<HomeScreen> {
             }
           },
         ),
+      ),
+    );
+  }
+
+  Widget buildCardAgua(int consumidoMl, int metaMl, Function(int) onAdicionar) {
+    double progresso = (consumidoMl / metaMl).clamp(0.0, 1.0);
+    String consumidoLitros = (consumidoMl / 1000).toStringAsFixed(2);
+    String metaLitros = (metaMl / 1000).toStringAsFixed(2);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.water_drop, color: Colors.blueAccent),
+                  SizedBox(width: 8),
+                  Text(
+                    'Hidratação Diária',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '$consumidoLitros L / $metaLitros L',
+                style: const TextStyle(
+                  color: Colors.blueAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: LinearProgressIndicator(
+              value: progresso,
+              backgroundColor: Colors.white10,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Colors.blueAccent,
+              ),
+              minHeight: 8,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              ElevatedButton(
+                onPressed: () => onAdicionar(250),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                  foregroundColor: Colors.blueAccent,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      '250 ml',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => onAdicionar(500),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent.withOpacity(0.2),
+                  foregroundColor: Colors.blueAccent,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 16),
+                    SizedBox(width: 4),
+                    Text(
+                      '500 ml',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
