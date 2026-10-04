@@ -19,8 +19,8 @@ class _DietaScreenState extends State<DietaScreen> {
   final ImagePicker _picker = ImagePicker();
 
   bool _isLoading = true;
-  bool _expandirDiretrizes =
-      false; // Estado para controlar a expansão das diretrizes da IA
+  bool _expandirDiretrizes = false;
+  bool _expandirCardapio = false;
   List<Map<String, dynamic>> _refeicoesHoje = [];
 
   @override
@@ -150,6 +150,48 @@ class _DietaScreenState extends State<DietaScreen> {
     }
   }
 
+  Future<void> _adicionarRefeicaoSugerida(Map<String, dynamic> sug) async {
+    final nomeRef = sug['refeicao'] ?? 'Refeição Sugerida';
+    final itens = sug['itens'] ?? '';
+    final calStr = sug['calorias']?.toString() ?? '0';
+    final calorias = int.tryParse(calStr.replaceAll(RegExp(r'\D'), '')) ?? 0;
+
+    _mostrarLoadingIA('Registrando refeição...');
+
+    try {
+      final proteinas = (calorias * 0.3 / 4).round();
+      final carboidratos = (calorias * 0.5 / 4).round();
+      final gorduras = (calorias * 0.2 / 9).round();
+
+      await _dietaRepository.registrarRefeicao(
+        usuarioId: widget.usuarioId,
+        descricao: '$nomeRef: $itens',
+        calorias: calorias,
+        proteinas: proteinas,
+        carboidratos: carboidratos,
+        gorduras: gorduras,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$nomeRef adicionado às refeições de hoje! 🥗'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        _carregarRefeicoes();
+      }
+    } catch (e) {
+      if (mounted) {
+        if (Navigator.canPop(context)) Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao registrar sugestão: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _excluirRefeicao(int id) async {
     try {
       await _dietaRepository.excluirRefeicao(id);
@@ -186,141 +228,64 @@ class _DietaScreenState extends State<DietaScreen> {
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        // --- DIRETRIZES DA IA (RETRÁTIL) ---
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.greenAccent.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
-          ),
-          child: Theme(
-            data: ThemeData(dividerColor: Colors.transparent),
-            child: ExpansionTile(
-              initiallyExpanded: _expandirDiretrizes,
-              onExpansionChanged: (expanded) {
-                setState(() {
-                  _expandirDiretrizes = expanded;
-                });
-              },
-              leading: const Icon(
-                Icons.restaurant,
-                color: Colors.greenAccent,
-                size: 20,
-              ),
-              title: const Text(
-                'Diretrizes da Nutricionista IA',
-                style: TextStyle(
-                  color: Colors.greenAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-              subtitle: Text(
-                _expandirDiretrizes
-                    ? 'Toque para recolher'
-                    : 'Toque aqui para ver explicação',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-              ),
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  child: Text(
-                    'Para promover a hipertrofia muscular com foco em calistenia, precisamos de um leve superávit calórico. Suas refeições devem combinar proteínas de alto valor biológico com carboidratos complexos para garantir energia plena nos treinos.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 13,
-                      height: 1.4,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-
-        // --- CARDÁPIO SUGERIDO ---
-        const Text(
-          'Cardápio Sugerido (Hoje)',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 12),
-        if (sugestoes.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Text(
-              'Gere seu treino e plano diário na aba "Home" para ver as sugestões de refeições aqui.',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
-            ),
-          )
-        else
-          ListView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: sugestoes.length,
-            itemBuilder: (context, index) {
-              final sug = sugestoes[index];
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1C1C1E),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.greenAccent.withOpacity(0.1),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          sug['refeicao'] ?? 'Refeição',
-                          style: const TextStyle(
-                            color: Colors.greenAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Text(
-                          "${sug['calorias'] ?? 0}"
-                                  .replaceAll(
-                                    RegExp(r'\s*kcal', caseSensitive: false),
-                                    '',
-                                  )
-                                  .trim() +
-                              ' kcal',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      sug['itens'] ?? '',
-                      style: const TextStyle(
-                        color: Colors.grey,
-                        fontSize: 13,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              );
+        // --- 1. DIRETRIZES DA NUTRICIONISTA IA ---
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: ExpansionTile(
+            initiallyExpanded: _expandirDiretrizes,
+            onExpansionChanged: (expanded) {
+              setState(() {
+                _expandirDiretrizes = expanded;
+              });
             },
+            backgroundColor: Colors.greenAccent.withOpacity(0.05),
+            collapsedBackgroundColor: Colors.greenAccent.withOpacity(0.05),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.greenAccent.withOpacity(0.3)),
+            ),
+            collapsedShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.greenAccent.withOpacity(0.3)),
+            ),
+            leading: const Icon(
+              Icons.restaurant,
+              color: Colors.greenAccent,
+              size: 20,
+            ),
+            title: const Text(
+              'Diretrizes da Nutricionista IA',
+              style: TextStyle(
+                color: Colors.greenAccent,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            subtitle: Text(
+              _expandirDiretrizes
+                  ? 'Toque para recolher'
+                  : 'Toque aqui para ver explicação',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  'Para promover a hipertrofia muscular com foco em calistenia, precisamos de um leve superávit calórico. Suas refeições devem combinar proteínas de alto valor biológico com carboidratos complexos para garantir energia plena nos treinos.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
           ),
-        const SizedBox(height: 24),
+        ),
+        const SizedBox(height: 20),
+        const SizedBox(height: 20),
 
-        // --- REGISTRAR CONSUMO MANUAL/FOTO ---
+        // --- 2. REGISTRAR CONSUMO DIÁRIO (FOCO PRINCIPAL EM DESTAQUE) ---
         const Text(
           'Registrar Consumo Diário',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -375,7 +340,7 @@ class _DietaScreenState extends State<DietaScreen> {
         ),
         const SizedBox(height: 24),
 
-        // --- LISTA DE REFEIÇÕES DO DIA ---
+        // --- 3. REFEIÇÕES DE HOJE ---
         const Text(
           'Refeições de Hoje',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -383,7 +348,7 @@ class _DietaScreenState extends State<DietaScreen> {
         const SizedBox(height: 12),
         _refeicoesHoje.isEmpty
             ? const Padding(
-                padding: EdgeInsets.symmetric(vertical: 30),
+                padding: EdgeInsets.symmetric(vertical: 16),
                 child: Center(
                   child: Text(
                     'Nenhuma refeição registrada hoje.',
@@ -462,6 +427,143 @@ class _DietaScreenState extends State<DietaScreen> {
                   );
                 },
               ),
+        const SizedBox(height: 24),
+
+        // --- 4. CARDÁPIO SUGERIDO ---
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: ExpansionTile(
+            initiallyExpanded: _expandirCardapio,
+            onExpansionChanged: (expanded) {
+              setState(() {
+                _expandirCardapio = expanded;
+              });
+            },
+            backgroundColor: const Color(0xFF1C1C1E),
+            collapsedBackgroundColor: const Color(0xFF1C1C1E),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.greenAccent.withOpacity(0.2)),
+            ),
+            collapsedShape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.greenAccent.withOpacity(0.2)),
+            ),
+            leading: const Icon(
+              Icons.menu_book,
+              color: Colors.greenAccent,
+              size: 22,
+            ),
+            title: const Text(
+              'Cardápio Sugerido (Hoje)',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            subtitle: Text(
+              _expandirCardapio
+                  ? 'Toque para recolher'
+                  : 'Toque para ver sugestões da IA',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: sugestoes.isEmpty
+                    ? const Text(
+                        'Gere seu treino e plano diário na aba "Home" para ver as sugestões de refeições aqui.',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: sugestoes.length,
+                        itemBuilder: (context, index) {
+                          final sug = sugestoes[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.black45,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.greenAccent.withOpacity(0.1),
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            sug['refeicao'] ?? 'Refeição',
+                                            style: const TextStyle(
+                                              color: Colors.greenAccent,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          Text(
+                                            "${sug['calorias'] ?? 0}"
+                                                    .replaceAll(
+                                                      RegExp(
+                                                        r'\s*kcal',
+                                                        caseSensitive: false,
+                                                      ),
+                                                      '',
+                                                    )
+                                                    .trim() +
+                                                ' kcal',
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        sug['itens'] ?? '',
+                                        style: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 12,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(
+                                    Icons.add_circle,
+                                    color: Colors.greenAccent,
+                                    size: 26,
+                                  ),
+                                  tooltip: 'Adicionar esta refeição',
+                                  onPressed: () =>
+                                      _adicionarRefeicaoSugerida(sug),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 30),
       ],
     );
   }

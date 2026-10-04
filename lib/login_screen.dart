@@ -215,10 +215,29 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.fitness_center,
-                color: Colors.greenAccent,
-                size: 80,
+// Ícone que remete ao corpo humano em movimento / Calistenia + IA
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.greenAccent.withOpacity(0.08),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.greenAccent.withOpacity(0.3),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.greenAccent.withOpacity(0.1),
+                      blurRadius: 15,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.accessibility_new,
+                  color: Colors.greenAccent,
+                  size: 48,
+                ),
               ),
               const SizedBox(height: 16),
               const Text(
@@ -227,6 +246,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
+                  letterSpacing: 1.2,
                 ),
               ),
               const SizedBox(height: 8),
@@ -252,8 +272,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _senhaController,
                       obscureText: _ocultarSenha,
                       autofillHints: const [AutofillHints.password],
-                      onEditingComplete:
-                          _entrar, // Permite submeter pressionando 'Enter'
+                      onEditingComplete: _entrar,
                       decoration: InputDecoration(
                         hintText: 'Senha',
                         prefixIcon: const Icon(Icons.lock, color: Colors.grey),
