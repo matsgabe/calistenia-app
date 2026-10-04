@@ -56,10 +56,7 @@ class UsuarioRepository {
           .from('historico_fisico')
           .select()
           .eq('usuario_id', usuarioId)
-          .order(
-            'id',
-            ascending: false,
-          )
+          .order('id', ascending: false)
           .limit(1);
 
       return List<Map<String, dynamic>>.from(response);
@@ -189,13 +186,29 @@ class UsuarioRepository {
     String dataIso,
   ) async {
     try {
-      final response = await _supabase
+      // 1. Tenta buscar o plano gerado especificamente para essa data exata
+      final responseExato = await _supabase
           .from('plano_alimentar')
           .select()
           .eq('usuario_id', usuarioId)
           .eq('data_registro', dataIso)
           .maybeSingle();
-      return response;
+
+      if (responseExato != null) {
+        return responseExato;
+      }
+
+      // 2. Se não houver plano exato para essa data, buscamos o plano mais recente do usuário
+      // Isso garante que dias futuros ou dias sem registro usem sempre a meta atualizada mais recente
+      final responseMaisRecente = await _supabase
+          .from('plano_alimentar')
+          .select()
+          .eq('usuario_id', usuarioId)
+          .order('data_registro', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      return responseMaisRecente;
     } catch (e) {
       debugPrint('Erro ao buscar plano da data $dataIso: $e');
       return null;
