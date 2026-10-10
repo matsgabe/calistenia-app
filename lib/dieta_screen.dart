@@ -63,9 +63,9 @@ class _DietaScreenState extends State<DietaScreen> {
     );
   }
 
-  Future<void> _capturarEAnalisarFoto() async {
+  Future<void> _capturarEAnalisarFoto(ImageSource source) async {
     try {
-      final XFile? foto = await _picker.pickImage(source: ImageSource.camera);
+      final XFile? foto = await _picker.pickImage(source: source);
       if (foto == null) return;
 
       if (mounted) _mostrarLoadingIA('Vision IA analisando prato...');
@@ -108,6 +108,47 @@ class _DietaScreenState extends State<DietaScreen> {
         ).showSnackBar(SnackBar(content: Text('Erro ao analisar prato: $e')));
       }
     }
+  }
+
+  void _mostrarOpcoesDeImagem() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.greenAccent),
+              title: const Text(
+                'Tirar Foto com a Câmera',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _capturarEAnalisarFoto(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library,
+                color: Colors.greenAccent,
+              ),
+              title: const Text(
+                'Escolher da Galeria',
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _capturarEAnalisarFoto(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _registrarManual() async {
@@ -328,7 +369,7 @@ class _DietaScreenState extends State<DietaScreen> {
             ),
             const SizedBox(width: 12),
             InkWell(
-              onTap: _capturarEAnalisarFoto,
+              onTap: _mostrarOpcoesDeImagem,
               borderRadius: BorderRadius.circular(50),
               child: const CircleAvatar(
                 radius: 24,
