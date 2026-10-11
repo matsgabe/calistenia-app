@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'usuario_repository.dart';
 import 'nutricao_ia_service.dart';
 import 'app_cache.dart';
@@ -110,16 +111,6 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
         AppCache.planoAtual = planoIA;
       }
 
-      if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeScreen(usuarioId: widget.usuarioId),
-          ),
-          (route) => false,
-        );
-      }
-
       // ==========================================
       // 3. MONTAGEM DO CACHE COM RETORNO DA IA
       // ==========================================
@@ -163,15 +154,28 @@ class _AnamneseScreenState extends State<AnamneseScreen> {
         Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => HomeScreen(usuarioId: widget.usuarioId),
+            builder: (context) => HomeScreen(
+              usuarioId: widget.usuarioId,
+              primeiroAcesso:
+                  true, // <-- AQUI DISPARA O TUTORIAL NO PRIMEIRO ACESSO!
+            ),
           ),
           (route) => false,
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Erro ao gerar plano: $e')));
+        // Se houver falha na IA, ainda assim garante o acesso do usuário passando o primeiro acesso
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeScreen(
+              usuarioId: widget.usuarioId,
+              primeiroAcesso: true, // <-- E AQUI TAMBÉM NO FALLBACK!
+            ),
+          ),
+          (route) => false,
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);

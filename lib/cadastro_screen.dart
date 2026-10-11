@@ -8,10 +8,10 @@ class CadastroScreen extends StatefulWidget {
   const CadastroScreen({super.key});
 
   @override
-  State createState() => _CadastroScreenState();
+  State<CadastroScreen> createState() => _CadastroScreenState();
 }
 
-class _CadastroScreenState extends State {
+class _CadastroScreenState extends State<CadastroScreen> {
   final _nomeController = TextEditingController();
   final _usernameController = TextEditingController();
   final _senhaController = TextEditingController();
@@ -52,7 +52,7 @@ class _CadastroScreenState extends State {
     return _temTamanho && _temLetra && _temNumero && _temEspecial;
   }
 
-  Future _cadastrar() async {
+  Future<void> _cadastrar() async {
     final nome = _nomeController.text.trim();
     final username = _usernameController.text.trim();
     final senha = _senhaController.text.trim();
@@ -102,6 +102,7 @@ class _CadastroScreenState extends State {
       );
 
       if (mounted) {
+        // Redireciona para a Anamnese. Ao finalizar lá, a Anamnese empurra para a HomeScreen com o tutorial.
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -110,7 +111,6 @@ class _CadastroScreenState extends State {
         );
       }
     } on AuthException catch (e) {
-      // Captura erros ESPECÍFICOS do Supabase e traduz para o usuário
       if (mounted) {
         String mensagemErro = 'Erro de autenticação.';
         if (e.message.contains('Password should be at least')) {
@@ -201,7 +201,7 @@ class _CadastroScreenState extends State {
               TextField(
                 controller: _usernameController,
                 decoration: const InputDecoration(
-                  hintText: 'Username (ex: usario123)',
+                  hintText: 'Username (ex: usuario123)',
                   prefixIcon: Icon(Icons.person, color: Colors.grey),
                 ),
               ),
@@ -210,9 +210,6 @@ class _CadastroScreenState extends State {
               TextField(
                 controller: _senhaController,
                 obscureText: _ocultarSenha,
-                onChanged: (val) {
-                  // O listener no initState já faz o trabalho, mas garantimos a atualização visual aqui
-                },
                 decoration: InputDecoration(
                   hintText: 'Senha',
                   prefixIcon: const Icon(Icons.lock, color: Colors.grey),
@@ -266,8 +263,6 @@ class _CadastroScreenState extends State {
                   ],
                 ),
               ),
-              // -------------------------------------
-
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,

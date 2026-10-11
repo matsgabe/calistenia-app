@@ -12,12 +12,18 @@ import 'nutricao_ia_service.dart';
 import 'calendario_screen.dart';
 import 'editar_perfil_screen.dart';
 import 'agua_repository.dart';
+import 'tutorial_screen.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HomeScreen extends StatefulWidget {
   final int usuarioId;
-  const HomeScreen({super.key, required this.usuarioId});
+  final bool primeiroAcesso;
+  const HomeScreen({
+    super.key,
+    required this.usuarioId,
+    this.primeiroAcesso = false,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -56,6 +62,22 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _carregarDashboard();
     _carregarDadosAgua();
+
+    // Se for o primeiro acesso, exibe o tutorial após a árvore de widgets montar
+    if (widget.primeiroAcesso) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _mostrarTutorialModal();
+      });
+    }
+  }
+
+  void _mostrarTutorialModal() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TutorialScreen(usuarioId: widget.usuarioId),
+      ),
+    );
   }
 
   Future<void> _carregarDadosAgua() async {
