@@ -13,6 +13,7 @@ import 'calendario_screen.dart';
 import 'editar_perfil_screen.dart';
 import 'agua_repository.dart';
 import 'tutorial_screen.dart';
+import 'ajuda_screen.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -359,7 +360,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ? (_planoData?['dados_ia']?['resumo_analise'] ??
               planoCache?['resumo_analise'] ??
               'Plano inteligente ativo.')
-        : 'Plano pendente. Vá em "Seu Histórico" para configurar o perfil ou refaça o Anamnese.';
+        : 'Plano pendente. Vá em "Seu Histórico" para configurar o perfil ou refaça a Anamnese.';
 
     final nomeTreinoIA = temPlano
         ? (_planoData?['dados_ia']?['treino_sugerido_nome'] ??
@@ -375,6 +376,43 @@ class _HomeScreenState extends State<HomeScreen> {
       padding: const EdgeInsets.all(16.0),
       physics: const BouncingScrollPhysics(),
       children: [
+        // --- BANNER DE ATALHO PARA O MANUAL DE AJUDA ---
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AjudaScreen()),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: const [
+                Icon(Icons.help_outline, color: Colors.green, size: 22),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Dúvidas sobre os recursos? Toque para ver o Manual',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios, color: Colors.green, size: 14),
+              ],
+            ),
+          ),
+        ),
+
         // --- CARD DE ANÁLISE NUTRI & PERSONAL IA ---
         Container(
           decoration: BoxDecoration(
@@ -512,17 +550,17 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.local_fire_department,
                         color: Colors.orangeAccent,
                         size: 22,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
-                        'Sequência: 0 dias', // ou $_sequenciaAtual
-                        style: TextStyle(
+                        'Sequência: $_sequenciaAtual dias',
+                        style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.bold,
                           color: Colors.orangeAccent,
@@ -921,7 +959,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ],
               ),
-              // CORRIGIDO AQUI: Usando as variáveis dinâmicas em vez de texto fixo
               Text(
                 '$consumidoLitros L / $metaLitros L',
                 style: const TextStyle(
